@@ -1,0 +1,355 @@
+﻿<Window x:Class="MindMap.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:conv="clr-namespace:MindMap.Converters"
+        xmlns:vm="clr-namespace:MindMap.ViewModels"
+        Title="{Binding Title}"
+        Width="1280"
+        Height="760"
+        WindowStartupLocation="CenterScreen"
+        FontSize="13">
+
+    <Window.Resources>
+        <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
+        <conv:BoolToVisibilityConverter x:Key="InverseBoolToVis" Invert="True" />
+    </Window.Resources>
+
+    <Window.InputBindings>
+        <KeyBinding Key="N" Modifiers="Ctrl" Command="{Binding NewDocumentCommand}" />
+        <KeyBinding Key="O" Modifiers="Ctrl" Command="{Binding OpenDocumentCommand}" />
+        <KeyBinding Key="W" Modifiers="Ctrl" Command="{Binding CloseActiveDocumentCommand}" />
+        <KeyBinding Key="S" Modifiers="Ctrl" Command="{Binding ActiveDocument.SaveCommand}" />
+        <KeyBinding Key="S" Modifiers="Ctrl+Shift" Command="{Binding ActiveDocument.SaveAsCommand}" />
+        <KeyBinding Key="Z" Modifiers="Ctrl" Command="{Binding ActiveDocument.UndoCommand}" />
+        <KeyBinding Key="Y" Modifiers="Ctrl" Command="{Binding ActiveDocument.RedoCommand}" />
+        <KeyBinding Key="Z" Modifiers="Ctrl+Shift" Command="{Binding ActiveDocument.RedoCommand}" />
+        <!-- 編集中はコマンドが無効になるので、キーはそのままテキストボックスに届く -->
+        <KeyBinding Key="Tab" Command="{Binding ActiveDocument.AddChildCommand}" />
+        <KeyBinding Key="Insert" Command="{Binding ActiveDocument.AddChildCommand}" />
+        <KeyBinding Key="Return" Command="{Binding ActiveDocument.AddSiblingCommand}" />
+        <KeyBinding Key="Delete" Command="{Binding ActiveDocument.DeleteNodeCommand}" />
+        <KeyBinding Key="F2" Command="{Binding ActiveDocument.BeginEditCommand}" />
+        <KeyBinding Key="OemPlus" Modifiers="Ctrl" Command="{Binding ActiveDocument.ZoomInCommand}" />
+        <KeyBinding Key="OemMinus" Modifiers="Ctrl" Command="{Binding ActiveDocument.ZoomOutCommand}" />
+        <KeyBinding Key="D0" Modifiers="Ctrl" Command="{Binding ActiveDocument.ResetZoomCommand}" />
+    </Window.InputBindings>
+
+    <DockPanel>
+        <ToolBarTray DockPanel.Dock="Top">
+            <ToolBar>
+                <Button Style="{StaticResource ToolBarButton}"
+                        Command="{Binding NewDocumentCommand}"
+                        Tag="{StaticResource Icon.New}"
+                        Content="新規"
+                        ToolTip="新しいタブ (Ctrl+N)" />
+                <Button Style="{StaticResource ToolBarButton}"
+                        Command="{Binding OpenDocumentCommand}"
+                        Tag="{StaticResource Icon.Open}"
+                        Content="開く"
+                        ToolTip="別のタブで開く (Ctrl+O)" />
+                <Button Style="{StaticResource ToolBarButton}"
+                        Command="{Binding ActiveDocument.SaveCommand}"
+                        Tag="{StaticResource Icon.Save}"
+                        Content="保存"
+                        ToolTip="上書き保存 (Ctrl+S)" />
+                <Button Style="{StaticResource ToolBarButton}"
+                        Command="{Binding ActiveDocument.SaveAsCommand}"
+                        Tag="{StaticResource Icon.SaveAs}"
+                        Content="名前を付けて保存"
+                        ToolTip="Ctrl+Shift+S" />
+                <Separator />
+                <Button Style="{StaticResource ToolBarButton}"
+                        Command="{Binding ActiveDocument.UndoCommand}"
+                        Tag="{StaticResource Icon.Undo}"
+                        Content="元に戻す"
+                        ToolTip="Ctrl+Z" />
+                <Button Style="{StaticResource ToolBarButton}"
+                        Command="{Binding ActiveDocument.RedoCommand}"
+                        Tag="{StaticResource Icon.Redo}"
+                        Content="やり直し"
+                        ToolTip="Ctrl+Y" />
+                <Separator />
+                <Button Style="{StaticResource ToolBarButton}"
+                        Command="{Binding ActiveDocument.AddChildCommand}"
+                        Tag="{StaticResource Icon.AddChild}"
+                        Content="子ノード"
+                        ToolTip="選択中のノードに子を追加 (Tab)" />
+                <Button Style="{StaticResource ToolBarButton}"
+                        Command="{Binding ActiveDocument.AddSiblingCommand}"
+                        Tag="{StaticResource Icon.AddSibling}"
+                        Content="兄弟ノード"
+                        ToolTip="同じ親の下にノードを追加 (Enter)" />
+                <Button Style="{StaticResource ToolBarButton}"
+                        Command="{Binding ActiveDocument.BeginEditCommand}"
+                        Tag="{StaticResource Icon.Edit}"
+                        Content="編集"
+                        ToolTip="選択中のノードを編集 (F2)" />
+                <Button Style="{StaticResource ToolBarButton}"
+                        Command="{Binding ActiveDocument.DeleteNodeCommand}"
+                        Tag="{StaticResource Icon.Delete}"
+                        Content="削除"
+                        ToolTip="選択中のノードとその子孫を削除 (Delete)" />
+                <Separator />
+                <Button Style="{StaticResource ToolBarButton}"
+                        Command="{Binding ActiveDocument.ZoomOutCommand}"
+                        Tag="{StaticResource Icon.ZoomOut}"
+                        Content="縮小"
+                        ToolTip="Ctrl+-" />
+                <Button Style="{StaticResource ToolBarButton}"
+                        Command="{Binding ActiveDocument.ResetZoomCommand}"
+                        Tag="{StaticResource Icon.ZoomReset}"
+                        Content="100%"
+                        ToolTip="等倍に戻す (Ctrl+0)" />
+                <Button Style="{StaticResource ToolBarButton}"
+                        Command="{Binding ActiveDocument.ZoomInCommand}"
+                        Tag="{StaticResource Icon.ZoomIn}"
+                        Content="拡大"
+                        ToolTip="Ctrl++" />
+            </ToolBar>
+        </ToolBarTray>
+
+        <StatusBar DockPanel.Dock="Bottom">
+            <StatusBarItem>
+                <TextBlock Foreground="#666"
+                           Text="ドラッグで移動 / ダブルクリックで編集 / タイトル欄で Enter を押すと内容欄へ / Ctrl+Enter で確定 / Ctrl+ホイールで拡大縮小" />
+            </StatusBarItem>
+            <StatusBarItem HorizontalAlignment="Right">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Foreground="#666" Text="{Binding ActiveDocument.Zoom, StringFormat={}{0:P0}}" />
+                    <TextBlock Foreground="#666"
+                               Margin="12,0,0,0"
+                               Text="{Binding ActiveDocument.CurrentFilePath, TargetNullValue=未保存}" />
+                </StackPanel>
+            </StatusBarItem>
+        </StatusBar>
+
+        <TabControl ItemsSource="{Binding Documents}"
+                    SelectedItem="{Binding ActiveDocument}"
+                    Padding="0"
+                    BorderThickness="0,1,0,0">
+
+            <!-- タブの見出し。ファイル名と、閉じるための × ボタン。 -->
+            <TabControl.ItemContainerStyle>
+                <Style TargetType="TabItem">
+                    <Setter Property="Padding" Value="14,7" />
+                </Style>
+            </TabControl.ItemContainerStyle>
+
+            <TabControl.ItemTemplate>
+                <DataTemplate DataType="{x:Type vm:DocumentViewModel}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{Binding DisplayName}"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,14,0" />
+                        <Button Style="{StaticResource TabCloseButton}"
+                                ToolTip="このタブを閉じる (Ctrl+W)"
+                                Command="{Binding DataContext.CloseDocumentCommand,
+                                                  RelativeSource={RelativeSource AncestorType=TabControl}}"
+                                CommandParameter="{Binding}" />
+                    </StackPanel>
+                </DataTemplate>
+            </TabControl.ItemTemplate>
+
+            <!-- タブの中身。ドキュメントごとに同じキャンバスを描く。 -->
+            <TabControl.ContentTemplate>
+                <DataTemplate DataType="{x:Type vm:DocumentViewModel}">
+                    <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                                  VerticalScrollBarVisibility="Auto"
+                                  Background="#F4F6F8"
+                                  DataContextChanged="Scroller_DataContextChanged"
+                                  ScrollChanged="Scroller_ScrollChanged"
+                                  PreviewMouseWheel="Scroller_PreviewMouseWheel"
+                                  PreviewMouseDown="Scroller_PreviewMouseDown"
+                                  PreviewMouseMove="Scroller_PreviewMouseMove"
+                                  PreviewMouseUp="Scroller_PreviewMouseUp">
+                        <!-- キャンバスは固定サイズ。スクロールで広い領域を使う。
+                             拡大縮小は LayoutTransform で行う（RenderTransform だとスクロール範囲が拡大率に追従しない）。 -->
+                        <Grid x:Name="CanvasRoot"
+                              Width="3000"
+                              Height="2000"
+                              Background="Transparent"
+                              MouseLeftButtonDown="CanvasRoot_MouseLeftButtonDown">
+                            <Grid.LayoutTransform>
+                                <ScaleTransform ScaleX="{Binding Zoom}" ScaleY="{Binding Zoom}" />
+                            </Grid.LayoutTransform>
+
+                            <!-- 接続線はノードより下に描く -->
+                            <ItemsControl ItemsSource="{Binding Connections}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <Canvas />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:ConnectionViewModel}">
+                                        <Line X1="{Binding X1}"
+                                              Y1="{Binding Y1}"
+                                              X2="{Binding X2}"
+                                              Y2="{Binding Y2}"
+                                              Stroke="#9AA5B1"
+                                              StrokeThickness="2" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <ItemsControl ItemsSource="{Binding Nodes}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <Canvas />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemContainerStyle>
+                                    <Style TargetType="ContentPresenter">
+                                        <Setter Property="Canvas.Left" Value="{Binding X}" />
+                                        <Setter Property="Canvas.Top" Value="{Binding Y}" />
+                                    </Style>
+                                </ItemsControl.ItemContainerStyle>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:NodeViewModel}">
+                                        <!-- 幅・高さは指定せず中身に合わせる。MaxWidth を超えたぶんは折り返す。 -->
+                                        <Border MinWidth="120"
+                                                MaxWidth="320"
+                                                MinHeight="48"
+                                                CornerRadius="8"
+                                                Background="White"
+                                                Cursor="SizeAll"
+                                                AllowDrop="True"
+                                                SizeChanged="Node_SizeChanged"
+                                                MouseLeftButtonDown="Node_MouseLeftButtonDown"
+                                                MouseMove="Node_MouseMove"
+                                                MouseLeftButtonUp="Node_MouseLeftButtonUp"
+                                                PreviewMouseRightButtonDown="Node_PreviewMouseRightButtonDown"
+                                                DragOver="Node_DragOver"
+                                                Drop="Node_Drop">
+                                            <Border.ContextMenu>
+                                                <ContextMenu>
+                                                    <MenuItem Header="リンクを開く"
+                                                              IsEnabled="{Binding HasLink}"
+                                                              Click="ContextOpenLink_Click" />
+                                                    <Separator />
+                                                    <MenuItem Header="ファイルを選んでリンク..."
+                                                              Click="ContextSetFileLink_Click" />
+                                                    <MenuItem Header="リンクを削除"
+                                                              IsEnabled="{Binding HasLink}"
+                                                              Click="ContextRemoveLink_Click" />
+                                                </ContextMenu>
+                                            </Border.ContextMenu>
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="BorderBrush" Value="#C3CBD5" />
+                                                    <Setter Property="BorderThickness" Value="1" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                            <Setter Property="BorderBrush" Value="#2F80ED" />
+                                                            <Setter Property="BorderThickness" Value="2" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+
+                                            <Grid Margin="12,8">
+                                                <!-- 表示：タイトルは中央、内容は左寄せ。内容が空なら区切り線ごと省く。 -->
+                                                <StackPanel VerticalAlignment="Center"
+                                                            Visibility="{Binding IsEditing, Converter={StaticResource InverseBoolToVis}}">
+                                                    <!-- リンクがあるときだけ、タイトルの右にアイコンが出る。
+                                                         リンクなしなら右の列が幅 0 になり、タイトルは中央のままになる。 -->
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Text="{Binding Title}"
+                                                                   FontWeight="SemiBold"
+                                                                   TextAlignment="Center"
+                                                                   TextWrapping="Wrap"
+                                                                   VerticalAlignment="Center" />
+                                                        <Button Grid.Column="1"
+                                                                Margin="4,0,0,0"
+                                                                VerticalAlignment="Center"
+                                                                Style="{StaticResource NodeLinkButton}"
+                                                                Visibility="{Binding HasLink, Converter={StaticResource BoolToVis}}"
+                                                                ToolTip="{Binding Link}"
+                                                                Command="{Binding DataContext.OpenLinkCommand,
+                                                                                  RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                CommandParameter="{Binding}" />
+                                                    </Grid>
+                                                    <Border Height="1"
+                                                            Margin="0,6"
+                                                            Background="#E3E8EE"
+                                                            Visibility="{Binding HasBody, Converter={StaticResource BoolToVis}}" />
+                                                    <TextBlock Text="{Binding Body}"
+                                                               TextAlignment="Left"
+                                                               TextWrapping="Wrap"
+                                                               FontSize="12"
+                                                               Foreground="#5B6673"
+                                                               Visibility="{Binding HasBody, Converter={StaticResource BoolToVis}}" />
+                                                </StackPanel>
+
+                                                <!-- 編集：タイトル欄は 1 行のみ。Enter で内容欄に移る。
+                                                     フォーカスが 2 つの欄の間を移る間は編集を続け、外に出たら確定する。 -->
+                                                <StackPanel Visibility="{Binding IsEditing, Converter={StaticResource BoolToVis}}"
+                                                            IsKeyboardFocusWithinChanged="EditPanel_IsKeyboardFocusWithinChanged">
+                                                    <TextBox Text="{Binding Title, UpdateSourceTrigger=PropertyChanged}"
+                                                             MinWidth="96"
+                                                             AcceptsReturn="False"
+                                                             TextAlignment="Center"
+                                                             FontWeight="SemiBold"
+                                                             BorderThickness="0"
+                                                             Background="Transparent"
+                                                             IsVisibleChanged="TitleBox_IsVisibleChanged"
+                                                             PreviewKeyDown="EditBox_PreviewKeyDown" />
+                                                    <Border Height="1" Margin="0,6" Background="#E3E8EE" />
+                                                    <TextBox Text="{Binding Body, UpdateSourceTrigger=PropertyChanged}"
+                                                             MinWidth="96"
+                                                             MinHeight="32"
+                                                             AcceptsReturn="True"
+                                                             TextWrapping="Wrap"
+                                                             TextAlignment="Left"
+                                                             FontSize="12"
+                                                             BorderThickness="0"
+                                                             Background="Transparent"
+                                                             PreviewKeyDown="EditBox_PreviewKeyDown" />
+
+                                                    <!-- リンク欄。本文から Tab で移れる。 -->
+                                                    <Border Height="1" Margin="0,6" Background="#E3E8EE" />
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto" />
+                                                            <ColumnDefinition Width="*" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <Path Data="{StaticResource Icon.Link}"
+                                                              Width="11"
+                                                              Height="11"
+                                                              Margin="0,0,5,0"
+                                                              Stretch="Uniform"
+                                                              Stroke="#8A94A0"
+                                                              StrokeThickness="1.7"
+                                                              StrokeLineJoin="Round"
+                                                              StrokeStartLineCap="Round"
+                                                              StrokeEndLineCap="Round"
+                                                              VerticalAlignment="Center" />
+                                                        <TextBox Grid.Column="1"
+                                                                 Text="{Binding Link, UpdateSourceTrigger=PropertyChanged}"
+                                                                 MinWidth="96"
+                                                                 FontSize="11"
+                                                                 Foreground="#5B6673"
+                                                                 BorderThickness="0"
+                                                                 Background="Transparent"
+                                                                 ToolTip="URL やファイルのパス（ブラウザーやエクスプローラーからのドラッグ、右クリックでも設定できます）"
+                                                                 PreviewKeyDown="EditBox_PreviewKeyDown" />
+                                                    </Grid>
+                                                </StackPanel>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </Grid>
+                    </ScrollViewer>
+                </DataTemplate>
+            </TabControl.ContentTemplate>
+        </TabControl>
+    </DockPanel>
+</Window>
+
+

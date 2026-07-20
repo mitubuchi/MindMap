@@ -1,0 +1,9 @@
+# 行末はリポジトリ上では LF に統一し、チェックアウト時に OS へ合わせる
+* text=auto
+
+# C# / XAML はテキストとして扱う
+*.cs text
+*.xaml text
+*.csproj text
+*.sln text
+*.md text
