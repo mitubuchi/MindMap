@@ -66,7 +66,22 @@ ISCC.exe installer/MindMap.iss
 `installer/Output/MindMap-1.0.0-Setup.exe` が生成されます。管理者権限なしでユーザー領域に
 インストールでき、スタートメニュー登録とアンインストーラーが付きます。
 
-ビルド済みのインストーラーは [Releases](../../releases) からダウンロードできます。
+### ポータブル ZIP
+
+インストールせずに使いたい場合は、ZIP 版を作成できます（Inno Setup 不要）。
+
+```sh
+# 自己完結ビルドを出力してから
+dotnet publish src/MindMap/MindMap.csproj -c Release -r win-x64 --self-contained true -o publish/win-x64
+
+# ZIP にまとめる
+powershell -ExecutionPolicy Bypass -File installer/package-zip.ps1
+```
+
+`installer/Output/MindMap-1.0.0-win-x64.zip` が生成されます。展開してできる `MindMap`
+フォルダー内の `MindMap.exe` を実行するだけで動きます。
+
+ビルド済みのインストーラーと ZIP は [Releases](../../releases) からダウンロードできます。
 
 ## ファイル形式
 
