@@ -31,6 +31,10 @@ _ReSharper*/
 packages/
 !**/packages/build/
 
+# Publish / installer output
+publish/
+installer/Output/
+
 # OS
 Thumbs.db
 Desktop.ini

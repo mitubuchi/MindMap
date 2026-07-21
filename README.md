@@ -51,6 +51,23 @@ dotnet run --project src/MindMap
 
 Visual Studio 2022 で `MindMap.sln` を開いて F5 でも実行できます。
 
+## インストーラーの作成
+
+Windows 用のインストーラー（自己完結・.NET 不要）を作るには、[Inno Setup](https://jrsoftware.org/isinfo.php) が必要です。
+
+```sh
+# 1. 自己完結ビルドを出力
+dotnet publish src/MindMap/MindMap.csproj -c Release -r win-x64 --self-contained true -o publish/win-x64
+
+# 2. インストーラーをコンパイル（ISCC.exe のパスは環境に合わせる）
+ISCC.exe installer/MindMap.iss
+```
+
+`installer/Output/MindMap-1.0.0-Setup.exe` が生成されます。管理者権限なしでユーザー領域に
+インストールでき、スタートメニュー登録とアンインストーラーが付きます。
+
+ビルド済みのインストーラーは [Releases](../../releases) からダウンロードできます。
+
 ## ファイル形式
 
 `.mindmap` ファイルは JSON です。ノードは親子関係を `ParentId` で表すフラットな配列として
