@@ -436,6 +436,41 @@ public partial class MainWindow : Window, IViewFor<MainWindowViewModel>
         e.Handled = true;
     }
 
+    /// <summary>キャンバスの余白にファイルを落とせるか判定する。</summary>
+    private void CanvasRoot_DragOver(object sender, DragEventArgs e)
+    {
+        e.Effects = DroppedLink.ExtractFiles(e.Data).Count > 0
+            ? DragDropEffects.Copy
+            : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    /// <summary>
+    /// エクスプローラーから落とされたファイルを、その場所にノードとして作る。
+    /// ノードの上に落としたときは <see cref="Node_Drop"/> がリンク設定として先に処理する。
+    /// </summary>
+    private void CanvasRoot_Drop(object sender, DragEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: DocumentViewModel document } canvas)
+        {
+            return;
+        }
+
+        var files = DroppedLink.ExtractFiles(e.Data);
+        if (files.Count == 0)
+        {
+            return;
+        }
+
+        // 落とした位置に置く。キャンバスの外にはみ出して行方不明にならないよう内側に留める。
+        var point = e.GetPosition(canvas);
+        var x = Math.Clamp(point.X, 0, Math.Max(0, canvas.Width - NodeViewModel.DefaultWidth));
+        var y = Math.Clamp(point.Y, 0, Math.Max(0, canvas.Height - NodeViewModel.DefaultHeight));
+
+        document.AddFileNodes(files, x, y);
+        e.Handled = true;
+    }
+
     /// <summary>
     /// 右クリックでそのノードを選んでおく（コンテキストメニューの対象を確定させる）。
     /// すでに複数選択に入っているノードなら、選択を崩さずそのまま対象にする。

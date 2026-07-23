@@ -180,9 +180,12 @@
                               Width="3000"
                               Height="2000"
                               Background="Transparent"
+                              AllowDrop="True"
                               MouseLeftButtonDown="CanvasRoot_MouseLeftButtonDown"
                               MouseMove="CanvasRoot_MouseMove"
-                              MouseLeftButtonUp="CanvasRoot_MouseLeftButtonUp">
+                              MouseLeftButtonUp="CanvasRoot_MouseLeftButtonUp"
+                              DragOver="CanvasRoot_DragOver"
+                              Drop="CanvasRoot_Drop">
                             <Grid.LayoutTransform>
                                 <ScaleTransform ScaleX="{Binding Zoom}" ScaleY="{Binding Zoom}" />
                             </Grid.LayoutTransform>

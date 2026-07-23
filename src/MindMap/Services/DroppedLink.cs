@@ -22,6 +22,25 @@ public static class DroppedLink
         (DataFormats.Text, Encoding.UTF8),
     ];
 
+    /// <summary>
+    /// ドロップされたファイル（フォルダーを含む）のパスをすべて返す。
+    /// 1 つ目だけを使う <see cref="Extract"/> と違い、まとめてノード化する用。
+    /// </summary>
+    public static IReadOnlyList<string> ExtractFiles(IDataObject data)
+    {
+        if (!data.GetDataPresent(DataFormats.FileDrop) ||
+            data.GetData(DataFormats.FileDrop) is not string[] files)
+        {
+            return [];
+        }
+
+        return files
+            .Select(f => f?.Trim())
+            .Where(f => !string.IsNullOrEmpty(f))
+            .Select(f => f!)
+            .ToList();
+    }
+
     public static string? Extract(IDataObject data)
     {
         // ファイルのドロップは、そのフルパスをリンクにする。

@@ -412,6 +412,81 @@ public sealed class DocumentViewModel : ReactiveObject
         edit.Node.IsEditing = false;
     }
 
+    /// <summary>
+    /// キャンバスに落とされたファイルを、選択中のノード（無ければルート）の子として追加する。
+    /// タイトルはファイル名、本文はファイルの属性、リンクはファイル自身を指す。
+    /// 複数まとめて落とされても 1 回の Undo で取り消せる。
+    /// </summary>
+    /// <param name="paths">落とされたファイル（フォルダー）のパス。</param>
+    /// <param name="x">落とした位置。ここを起点に、縦に積んでいく。</param>
+    /// <param name="y">落とした位置。</param>
+    public void AddFileNodes(IReadOnlyList<string> paths, double x, double y)
+    {
+        // 選択が無ければルートにぶら下げる。複数選択中は代表ノード（最後に選んだもの）を親にする。
+        var parent = SelectedNode ?? Nodes.FirstOrDefault(n => n.Parent is null) ?? Nodes.FirstOrDefault();
+        if (parent is null)
+        {
+            return;
+        }
+
+        var created = new List<NodeViewModel>();
+        var top = y;
+
+        foreach (var path in paths)
+        {
+            if (FileNodeContent.TryCreate(path) is not { } content)
+            {
+                continue;
+            }
+
+            // 制作日・更新日はファイル自身の日時に合わせる。AddNode より前に入れておくと、
+            // 変更の監視が張られる前なので「今の時刻」で上書きされない。
+            created.Add(new NodeViewModel(Guid.NewGuid(), content.Title, content.Body, x, top, content.Link)
+            {
+                CreatedAt = content.CreatedAt,
+                UpdatedAt = content.UpdatedAt,
+                Parent = parent,
+            });
+
+            top += NodeViewModel.DefaultHeight + VerticalGap;
+        }
+
+        if (created.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var node in created)
+        {
+            AddNode(node);
+        }
+
+        SetSelection(created, created[^1]);
+        IsDirty = true;
+
+        _history.Push(new DelegateUndoableAction(
+            undo: () =>
+            {
+                SelectedNode = parent;
+                foreach (var node in created)
+                {
+                    RemoveNode(node);
+                }
+
+                IsDirty = true;
+            },
+            redo: () =>
+            {
+                foreach (var node in created)
+                {
+                    AddNode(node);
+                }
+
+                SetSelection(created, created[^1]);
+                IsDirty = true;
+            }));
+    }
+
     /// <summary>ファイル選択ダイアログを開き、選ばれたファイルをノードのリンクにする。</summary>
     public async Task SetFileLinkAsync(NodeViewModel node)
     {
