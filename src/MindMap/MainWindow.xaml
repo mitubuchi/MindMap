@@ -40,91 +40,80 @@
 
     <DockPanel>
         <ToolBarTray DockPanel.Dock="Top">
+            <!--
+                ボタンのラベルはホバー時にツールチップとして出す（脇には常時出さない）。
+                文言はツールチップ側で Content から拾うので、ここには ToolTip を書かない。
+                キー操作は各ボタンの意味が分かるよう、ラベルの末尾に併記しておく。
+            -->
             <ToolBar>
                 <Button Style="{StaticResource ToolBarButton}"
                         Command="{Binding NewDocumentCommand}"
                         Tag="{StaticResource Icon.New}"
-                        Content="新規"
-                        ToolTip="新しいタブ (Ctrl+N)" />
+                        Content="新規 (Ctrl+N)" />
                 <Button Style="{StaticResource ToolBarButton}"
                         Command="{Binding OpenDocumentCommand}"
                         Tag="{StaticResource Icon.Open}"
-                        Content="開く"
-                        ToolTip="別のタブで開く (Ctrl+O)" />
+                        Content="開く (Ctrl+O)" />
                 <Button Style="{StaticResource ToolBarButton}"
                         Command="{Binding ActiveDocument.SaveCommand}"
                         Tag="{StaticResource Icon.Save}"
-                        Content="保存"
-                        ToolTip="上書き保存 (Ctrl+S)" />
+                        Content="保存 (Ctrl+S)" />
                 <Button Style="{StaticResource ToolBarButton}"
                         Command="{Binding ActiveDocument.SaveAsCommand}"
                         Tag="{StaticResource Icon.SaveAs}"
-                        Content="名前を付けて保存"
-                        ToolTip="Ctrl+Shift+S" />
+                        Content="名前を付けて保存 (Ctrl+Shift+S)" />
                 <Separator />
                 <Button Style="{StaticResource ToolBarButton}"
                         Command="{Binding ActiveDocument.UndoCommand}"
                         Tag="{StaticResource Icon.Undo}"
-                        Content="元に戻す"
-                        ToolTip="Ctrl+Z" />
+                        Content="元に戻す (Ctrl+Z)" />
                 <Button Style="{StaticResource ToolBarButton}"
                         Command="{Binding ActiveDocument.RedoCommand}"
                         Tag="{StaticResource Icon.Redo}"
-                        Content="やり直し"
-                        ToolTip="Ctrl+Y" />
+                        Content="やり直し (Ctrl+Y)" />
                 <Separator />
                 <Button Style="{StaticResource ToolBarButton}"
                         Command="{Binding ActiveDocument.CutCommand}"
                         Tag="{StaticResource Icon.Cut}"
-                        Content="切り取り"
-                        ToolTip="選択中のノードとその子孫を切り取る (Ctrl+X)" />
+                        Content="切り取り (Ctrl+X)" />
                 <Button Style="{StaticResource ToolBarButton}"
                         Command="{Binding ActiveDocument.CopyCommand}"
                         Tag="{StaticResource Icon.Copy}"
-                        Content="コピー"
-                        ToolTip="選択中のノードとその子孫をコピー (Ctrl+C)" />
+                        Content="コピー (Ctrl+C)" />
                 <Button Style="{StaticResource ToolBarButton}"
                         Command="{Binding ActiveDocument.PasteCommand}"
                         Tag="{StaticResource Icon.Paste}"
-                        Content="貼り付け"
-                        ToolTip="選択中のノードの子として貼り付け（別のタブやウィンドウからも可） (Ctrl+V)" />
+                        Content="貼り付け (Ctrl+V)" />
                 <Separator />
                 <Button Style="{StaticResource ToolBarButton}"
                         Command="{Binding ActiveDocument.AddChildCommand}"
                         Tag="{StaticResource Icon.AddChild}"
-                        Content="子ノード"
-                        ToolTip="選択中のノードに子を追加 (Tab)" />
+                        Content="子ノード (Tab)" />
                 <Button Style="{StaticResource ToolBarButton}"
                         Command="{Binding ActiveDocument.AddSiblingCommand}"
                         Tag="{StaticResource Icon.AddSibling}"
-                        Content="兄弟ノード"
-                        ToolTip="同じ親の下にノードを追加 (Enter)" />
+                        Content="兄弟ノード (Enter)" />
                 <Button Style="{StaticResource ToolBarButton}"
                         Command="{Binding ActiveDocument.BeginEditCommand}"
                         Tag="{StaticResource Icon.Edit}"
-                        Content="編集"
-                        ToolTip="選択中のノードを編集 (F2)" />
+                        Content="編集 (F2)" />
                 <Button Style="{StaticResource ToolBarButton}"
                         Command="{Binding ActiveDocument.DeleteNodeCommand}"
                         Tag="{StaticResource Icon.Delete}"
-                        Content="削除"
-                        ToolTip="選択中のノードとその子孫を削除 (Delete)" />
+                        Content="削除 (Delete)" />
                 <Separator />
                 <Button Style="{StaticResource ToolBarButton}"
                         Command="{Binding ActiveDocument.ZoomOutCommand}"
                         Tag="{StaticResource Icon.ZoomOut}"
-                        Content="縮小"
-                        ToolTip="Ctrl+-" />
+                        Content="縮小 (Ctrl+-)" />
                 <Button Style="{StaticResource ToolBarButton}"
                         Command="{Binding ActiveDocument.ResetZoomCommand}"
                         Tag="{StaticResource Icon.ZoomReset}"
-                        Content="100%"
-                        ToolTip="等倍に戻す (Ctrl+0)" />
+                        Content="等倍に戻す (Ctrl+0)" />
                 <Button Style="{StaticResource ToolBarButton}"
                         Command="{Binding ActiveDocument.ZoomInCommand}"
                         Tag="{StaticResource Icon.ZoomIn}"
-                        Content="拡大"
-                        ToolTip="Ctrl++" />
+                        Content="拡大 (Ctrl++)" />
             </ToolBar>
         </ToolBarTray>
 

@@ -161,22 +161,47 @@
     </Style>
 
     <!--
-        ツールバーのボタン。アイコンは Tag に、文字は Content に入れる。
-        ボタンごとに StackPanel を書かずに済ませるため、中身の並べ方はここで一度だけ決める。
+        ツールチップの見た目（白地・黒枠・黒文字）。キーを付けず全ツールチップ共通にする。
+        標準のツールチップを使うので、遅延・ちらつき防止・マウス追従は WPF に任せられる。
+    -->
+    <Style TargetType="ToolTip">
+        <Setter Property="Background" Value="White" />
+        <Setter Property="BorderBrush" Value="Black" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Foreground" Value="Black" />
+        <Setter Property="Padding" Value="7,3" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="HasDropShadow" Value="True" />
+    </Style>
+
+    <!--
+        ツールバーのボタン。アイコンは Tag に、ラベルは Content に入れる。
+        ラベルは脇に常時出さず、ホバー時にツールチップとして出す。
         ToolBar は中のボタンに専用のスタイルを当てるので、それを継承しないと
         ツールバーらしい見た目が失われる。各ボタンで明示的に指定して使う。
     -->
     <Style x:Key="ToolBarButton"
            TargetType="Button"
            BasedOn="{StaticResource {x:Static ToolBar.ButtonStyleKey}}">
+        <!-- ラベル（Content）をそのままツールチップの文言にする。 -->
+        <Setter Property="ToolTip" Value="{Binding Content, RelativeSource={RelativeSource Self}}" />
+        <!--
+            マウスの位置を基準に、その少し上へ出す。
+            InitialShowDelay で「乗せてから出るまで」の遅延を入れ、
+            BetweenShowDelay を長めに取ることで、ボタン間を移動したときの点滅を抑える。
+            ShowDuration は読んでいる間に消えないよう長めにする。
+        -->
+        <Setter Property="ToolTipService.Placement" Value="Mouse" />
+        <Setter Property="ToolTipService.VerticalOffset" Value="-30" />
+        <Setter Property="ToolTipService.InitialShowDelay" Value="450" />
+        <Setter Property="ToolTipService.BetweenShowDelay" Value="450" />
+        <Setter Property="ToolTipService.ShowDuration" Value="20000" />
         <Setter Property="ContentTemplate">
             <Setter.Value>
                 <DataTemplate>
-                    <StackPanel Orientation="Horizontal">
-                        <Path Style="{StaticResource ToolBarIcon}"
-                              Data="{Binding Tag, RelativeSource={RelativeSource AncestorType=Button}}" />
-                        <TextBlock Text="{Binding}" Margin="6,0,0,0" VerticalAlignment="Center" />
-                    </StackPanel>
+                    <!-- 表示はアイコンだけ。ラベルはホバー時のツールチップに任せる。 -->
+                    <Path Style="{StaticResource ToolBarIcon}"
+                          Data="{Binding Tag, RelativeSource={RelativeSource AncestorType=Button}}" />
                 </DataTemplate>
             </Setter.Value>
         </Setter>
