@@ -19,6 +19,7 @@ public sealed class NodeViewModel : ReactiveObject
     private double _height = DefaultHeight;
     private bool _isSelected;
     private bool _isEditing;
+    private bool _isCollapsed;
 
     public NodeViewModel(Guid id, string title, string body, double x, double y, string link = "")
     {
@@ -28,9 +29,25 @@ public sealed class NodeViewModel : ReactiveObject
         _link = link;
         _x = x;
         _y = y;
+
+        // 新しいノードは今この瞬間を制作日とする。読み込み時は保存済みの値で上書きする。
+        CreatedAt = DateTimeOffset.Now;
+        UpdatedAt = CreatedAt;
     }
 
     public Guid Id { get; }
+
+    /// <summary>
+    /// 制作日。UI には出さないが、後のデータ処理のためにファイルへ保存する。
+    /// 一度決めたら変えない（読み込み時は保存済みの値を復元する）。
+    /// </summary>
+    public DateTimeOffset CreatedAt { get; set; }
+
+    /// <summary>
+    /// 更新日。UI には出さないが、内容（タイトル・本文・リンク）を変えるたびに現在時刻へ更新し、ファイルへ保存する。
+    /// 位置の移動や表示の大小切り替えでは更新しない。
+    /// </summary>
+    public DateTimeOffset UpdatedAt { get; set; }
 
     /// <summary>ルートノードなら null。</summary>
     public NodeViewModel? Parent { get; set; }
@@ -55,11 +72,34 @@ public sealed class NodeViewModel : ReactiveObject
 
             this.RaiseAndSetIfChanged(ref _body, value);
             this.RaisePropertyChanged(nameof(HasBody));
+            this.RaisePropertyChanged(nameof(IsBodyVisible));
         }
     }
 
     /// <summary>本文が空なら、表示のときは本文欄と区切り線を出さない。</summary>
     public bool HasBody => !string.IsNullOrWhiteSpace(_body);
+
+    /// <summary>
+    /// 小さく表示するかどうか。true の間はタイトル（とリンク）だけを見せ、本文と区切り線を隠す。
+    /// ノードごとに切り替えられ、ファイルにも保存する。
+    /// </summary>
+    public bool IsCollapsed
+    {
+        get => _isCollapsed;
+        set
+        {
+            if (_isCollapsed == value)
+            {
+                return;
+            }
+
+            this.RaiseAndSetIfChanged(ref _isCollapsed, value);
+            this.RaisePropertyChanged(nameof(IsBodyVisible));
+        }
+    }
+
+    /// <summary>本文があり、かつ小さく表示していないときだけ本文欄と区切り線を出す。</summary>
+    public bool IsBodyVisible => HasBody && !_isCollapsed;
 
     /// <summary>URL またはファイルパス。設定するとタイトルの脇にリンクのアイコンが出る。</summary>
     public string Link

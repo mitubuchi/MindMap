@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.IO;
 using System.Reactive;
 using System.Reactive.Disposables;
@@ -64,25 +65,48 @@ public sealed class DocumentViewModel : ReactiveObject
         var hasSelection = this.WhenAnyValue(x => x.SelectedNode).Select(node => node is not null);
 
         // Tab / Enter / Delete はテキスト編集中も押されるので、編集中は無効にして
-        // キー入力をテキストボックスに素通しさせる。
+        // キー入力をテキストボックスに素通しさせる（Ctrl+C なども同じ理由で編集中は譲る）。
+        var isEditing = this.WhenAnyValue(
+            x => x.SelectedNode,
+            x => x.SelectedNode!.IsEditing,
+            (node, editing) => node is not null && editing);
+
+        var notEditing = isEditing.Select(editing => !editing);
+
         var canEditStructure = this.WhenAnyValue(
             x => x.SelectedNode,
             x => x.SelectedNode!.IsEditing,
-            (node, isEditing) => node is not null && !isEditing);
+            (node, editing) => node is not null && !editing);
+
+        // 選択は複数になり得るので、SelectedNode を見ているだけでは
+        // 「2 つ目を選び足した／外した」変化を取りこぼす。集合そのものの変化も見る。
+        var selectionChanged = Observable
+            .FromEventPattern<NotifyCollectionChangedEventHandler, NotifyCollectionChangedEventArgs>(
+                h => SelectedNodes.CollectionChanged += h,
+                h => SelectedNodes.CollectionChanged -= h)
+            .Select(_ => Unit.Default)
+            .StartWith(Unit.Default);
+
+        var canCopy = selectionChanged
+            .CombineLatest(notEditing, (_, ready) => ready && SelectedNodes.Count > 0);
 
         // ルートを消すとマップが空になってしまうので、そもそも実行できないようにする
         // （押せるボタンを押させてからエラーで断るより、無効にして見せた方が分かりやすい）。
-        var canDelete = this.WhenAnyValue(
-            x => x.SelectedNode,
-            x => x.SelectedNode!.IsEditing,
-            (node, isEditing) => node is { Parent: not null } && !isEditing);
+        // 複数選択のときは、ルート以外が 1 つでも入っていれば実行できる。
+        var canDelete = selectionChanged
+            .CombineLatest(notEditing, (_, ready) => ready && SelectedNodes.Any(n => n.Parent is not null));
 
         SaveCommand = ReactiveCommand.CreateFromTask(SaveAsync);
         SaveAsCommand = ReactiveCommand.CreateFromTask(SaveAsAsync);
         AddChildCommand = ReactiveCommand.Create(AddChild, canEditStructure);
         AddSiblingCommand = ReactiveCommand.Create(AddSibling, canEditStructure);
-        DeleteNodeCommand = ReactiveCommand.Create(DeleteSelectedNode, canDelete);
+        DeleteNodeCommand = ReactiveCommand.Create(DeleteSelection, canDelete);
         BeginEditCommand = ReactiveCommand.Create(BeginEditSelectedNode, hasSelection);
+        CutCommand = ReactiveCommand.Create(CutSelection, canDelete);
+        CopyCommand = ReactiveCommand.Create(CopySelection, canCopy);
+        PasteCommand = ReactiveCommand.Create(Paste, notEditing);
+        SelectAllCommand = ReactiveCommand.Create(SelectAll, notEditing);
+        ToggleCollapseCommand = ReactiveCommand.Create<NodeViewModel>(ToggleCollapse);
         UndoCommand = ReactiveCommand.Create(_history.Undo, this.WhenAnyValue(x => x.CanUndo));
         RedoCommand = ReactiveCommand.Create(_history.Redo, this.WhenAnyValue(x => x.CanRedo));
         ZoomInCommand = ReactiveCommand.Create(() => Zoom *= ZoomStep);
@@ -98,6 +122,11 @@ public sealed class DocumentViewModel : ReactiveObject
                 AddSiblingCommand.ThrownExceptions,
                 DeleteNodeCommand.ThrownExceptions,
                 BeginEditCommand.ThrownExceptions,
+                CutCommand.ThrownExceptions,
+                CopyCommand.ThrownExceptions,
+                PasteCommand.ThrownExceptions,
+                SelectAllCommand.ThrownExceptions,
+                ToggleCollapseCommand.ThrownExceptions,
                 UndoCommand.ThrownExceptions,
                 RedoCommand.ThrownExceptions)
             .SelectMany(ex => _showError.Handle(ex.Message))
@@ -128,31 +157,31 @@ public sealed class DocumentViewModel : ReactiveObject
 
     public ObservableCollection<ConnectionViewModel> Connections { get; } = new();
 
+    /// <summary>
+    /// 選択中のノード全部。複数選択できるので、コマンドの対象は基本こちらを見る。
+    /// 追加位置の基準や編集対象のように「1 つに決めたい」場面では <see cref="SelectedNode"/> を使う。
+    /// </summary>
+    public ObservableCollection<NodeViewModel> SelectedNodes { get; } = new();
+
     /// <summary>タブに出す名前。未保存なら末尾に * が付く。</summary>
     public string DisplayName => _displayName.Value;
 
+    /// <summary>
+    /// 選択の代表となるノード（最後に選んだもの）。設定すると選択はそれ 1 つだけになる。
+    /// 選択が空のときは null。
+    /// </summary>
     public NodeViewModel? SelectedNode
     {
         get => _selectedNode;
         set
         {
-            if (ReferenceEquals(_selectedNode, value))
+            if (value is null)
             {
+                ClearSelection();
                 return;
             }
 
-            if (_selectedNode is not null)
-            {
-                _selectedNode.IsSelected = false;
-                _selectedNode.IsEditing = false;
-            }
-
-            this.RaiseAndSetIfChanged(ref _selectedNode, value);
-
-            if (_selectedNode is not null)
-            {
-                _selectedNode.IsSelected = true;
-            }
+            SetSelection(new[] { value }, value);
         }
     }
 
@@ -208,6 +237,20 @@ public sealed class DocumentViewModel : ReactiveObject
 
     public ReactiveCommand<Unit, Unit> BeginEditCommand { get; }
 
+    /// <summary>選択中のノードを（部分木ごと）クリップボードへ移す。</summary>
+    public ReactiveCommand<Unit, Unit> CutCommand { get; }
+
+    /// <summary>選択中のノードを（部分木ごと）クリップボードへ複製する。</summary>
+    public ReactiveCommand<Unit, Unit> CopyCommand { get; }
+
+    /// <summary>クリップボードのノードを、選択中のノードの子として貼り付ける。</summary>
+    public ReactiveCommand<Unit, Unit> PasteCommand { get; }
+
+    public ReactiveCommand<Unit, Unit> SelectAllCommand { get; }
+
+    /// <summary>ノードの表示を大小切り替える（引数のノードを対象にする）。</summary>
+    public ReactiveCommand<NodeViewModel, Unit> ToggleCollapseCommand { get; }
+
     public ReactiveCommand<Unit, Unit> UndoCommand { get; }
 
     public ReactiveCommand<Unit, Unit> RedoCommand { get; }
@@ -254,36 +297,105 @@ public sealed class DocumentViewModel : ReactiveObject
         }
     }
 
+    /// <summary>Ctrl+クリック用。選択に入っていなければ足し、入っていれば外す。</summary>
+    public void ToggleSelection(NodeViewModel node)
+    {
+        var next = SelectedNodes.ToList();
+        var removed = next.Remove(node);
+        if (!removed)
+        {
+            next.Add(node);
+        }
+
+        SetSelection(next, removed ? next.LastOrDefault() : node);
+    }
+
+    /// <summary>Shift+クリック用。今の選択を保ったまま足す。</summary>
+    public void AddToSelection(NodeViewModel node) => SetSelection(SelectedNodes.Append(node), node);
+
+    /// <summary>範囲ドラッグ用。<paramref name="add"/> が true なら今の選択に足す。</summary>
+    public void SelectNodes(IEnumerable<NodeViewModel> nodes, bool add)
+    {
+        var next = (add ? SelectedNodes.Concat(nodes) : nodes).ToList();
+        SetSelection(next, next.LastOrDefault());
+    }
+
+    public void SelectAll() => SetSelection(Nodes, SelectedNode);
+
+    public void ClearSelection() => SetSelection(Array.Empty<NodeViewModel>(), null);
+
     /// <summary>
     /// ドラッグ移動を 1 操作として履歴に積む。移動中の 1 ピクセルごとに積むと
     /// Undo が使い物にならないので、View がドラッグ終了時にだけ呼ぶ。
+    /// 複数選択したまま動かしたときのために、動いたノードをまとめて受け取る。
     /// </summary>
-    public void CompleteNodeDrag(NodeViewModel node, double originalX, double originalY)
+    public void CompleteNodeDrag(IReadOnlyList<(NodeViewModel Node, double X, double Y)> origins)
     {
-        if (node.X == originalX && node.Y == originalY)
+        var before = origins.Where(o => o.Node.X != o.X || o.Node.Y != o.Y).ToList();
+        if (before.Count == 0)
         {
             return;
         }
 
-        var newX = node.X;
-        var newY = node.Y;
+        var after = before.Select(o => (o.Node, o.Node.X, o.Node.Y)).ToList();
 
         IsDirty = true;
         _history.Push(new DelegateUndoableAction(
-            undo: () =>
+            undo: () => ApplyPositions(before),
+            redo: () => ApplyPositions(after)));
+    }
+
+    private void ApplyPositions(IReadOnlyList<(NodeViewModel Node, double X, double Y)> positions)
+    {
+        foreach (var (node, x, y) in positions)
+        {
+            node.X = x;
+            node.Y = y;
+        }
+
+        SetSelection(positions.Select(p => p.Node).ToList(), positions[^1].Node);
+        IsDirty = true;
+    }
+
+    /// <summary>
+    /// 選択を入れ替える。<paramref name="primary"/> は子の追加位置や編集の基準になる代表ノード。
+    /// </summary>
+    private void SetSelection(IEnumerable<NodeViewModel> nodes, NodeViewModel? primary)
+    {
+        var next = new List<NodeViewModel>();
+        foreach (var node in nodes)
+        {
+            if (!next.Contains(node))
             {
-                node.X = originalX;
-                node.Y = originalY;
-                SelectedNode = node;
-                IsDirty = true;
-            },
-            redo: () =>
-            {
-                node.X = newX;
-                node.Y = newY;
-                SelectedNode = node;
-                IsDirty = true;
-            }));
+                next.Add(node);
+            }
+        }
+
+        var newPrimary = primary is not null && next.Contains(primary) ? primary : next.LastOrDefault();
+
+        // 同じノードを選び直しただけなら触らない。編集中のノードを再クリックしたときに
+        // 編集が終わってしまうのを防ぐため。
+        if (next.Count == SelectedNodes.Count && next.All(SelectedNodes.Contains))
+        {
+            this.RaiseAndSetIfChanged(ref _selectedNode, newPrimary, nameof(SelectedNode));
+            return;
+        }
+
+        // 選択から外れるノードは、編集中なら確定させてから外す。
+        foreach (var node in SelectedNodes.Where(n => !next.Contains(n)).ToList())
+        {
+            node.IsEditing = false;
+            node.IsSelected = false;
+        }
+
+        SelectedNodes.Clear();
+        foreach (var node in next)
+        {
+            node.IsSelected = true;
+            SelectedNodes.Add(node);
+        }
+
+        this.RaiseAndSetIfChanged(ref _selectedNode, newPrimary, nameof(SelectedNode));
     }
 
     /// <summary>編集中の内容を編集開始時点に戻して確定する（Escape 用）。</summary>
@@ -336,6 +448,27 @@ public sealed class DocumentViewModel : ReactiveObject
                 node.Link = newLink;
                 SelectedNode = node;
                 IsDirty = true;
+            }));
+    }
+
+    /// <summary>ノードの表示の大小を切り替える。1 操作として元に戻せる。</summary>
+    private void ToggleCollapse(NodeViewModel node)
+    {
+        var newValue = !node.IsCollapsed;
+
+        node.IsCollapsed = newValue;
+        SelectedNode = node;
+
+        _history.Push(new DelegateUndoableAction(
+            undo: () =>
+            {
+                node.IsCollapsed = !newValue;
+                SelectedNode = node;
+            },
+            redo: () =>
+            {
+                node.IsCollapsed = newValue;
+                SelectedNode = node;
             }));
     }
 
@@ -458,15 +591,22 @@ public sealed class DocumentViewModel : ReactiveObject
             }));
     }
 
-    private void DeleteSelectedNode()
+    /// <summary>
+    /// 選択中のノードを部分木ごと消す。複数選んでいれば 1 回の Undo でまとめて消える。
+    /// ルートを消すとマップが空になるので、選択に混ざっていても対象から外す。
+    /// </summary>
+    private void DeleteSelection()
     {
-        // ルートは canDelete で弾いているのでここには来ない。
-        if (SelectedNode is not { Parent: { } parent } target)
+        var targets = SelectionRoots().Where(n => n.Parent is not null).ToList();
+        if (targets.Count == 0)
         {
             return;
         }
 
-        var subtree = CollectSubtree(target);
+        // 消したあとの選択は、最初に消す枝の親に移す（消えたノードを選んだままにしない）。
+        var parent = targets[0].Parent!;
+        var subtree = targets.SelectMany(CollectSubtree).ToList();
+        var selection = SelectedNodes.ToList();
 
         SelectedNode = parent;
         foreach (var node in subtree)
@@ -485,7 +625,7 @@ public sealed class DocumentViewModel : ReactiveObject
                     AddNode(node);
                 }
 
-                SelectedNode = target;
+                SetSelection(selection, selection.LastOrDefault());
                 IsDirty = true;
             },
             redo: () =>
@@ -498,6 +638,221 @@ public sealed class DocumentViewModel : ReactiveObject
 
                 IsDirty = true;
             }));
+    }
+
+    // ------------------------------------------------------------ 切り取り・コピー・貼り付け
+
+    private void CopySelection()
+    {
+        var roots = SelectionRoots();
+        if (roots.Count > 0)
+        {
+            NodeClipboardService.Write(BuildFragment(roots));
+        }
+    }
+
+    private void CutSelection()
+    {
+        // ルートは消せないので、コピーする範囲も実際に消えるものだけに揃える
+        // （貼り付けたら元にもある、という食い違いを作らないため）。
+        var roots = SelectionRoots().Where(n => n.Parent is not null).ToList();
+        if (roots.Count == 0)
+        {
+            return;
+        }
+
+        NodeClipboardService.Write(BuildFragment(roots));
+        DeleteSelection();
+    }
+
+    /// <summary>
+    /// クリップボードのノードを、選択中のノード（無ければルート）の子として貼り付ける。
+    /// 別のファイルからのものでも、Id を振り直すので同じ手順で貼り込める。
+    /// </summary>
+    private void Paste()
+    {
+        if (NodeClipboardService.Read() is not { Nodes.Count: > 0 } fragment)
+        {
+            return;
+        }
+
+        var target = SelectedNode ?? Nodes.FirstOrDefault(n => n.Parent is null) ?? Nodes.FirstOrDefault();
+        if (target is null)
+        {
+            return;
+        }
+
+        var created = MaterializeFragment(fragment, out var roots);
+        if (created.Count == 0)
+        {
+            return;
+        }
+
+        // 子ノードを足すときと同じ場所に置く。かたまりの中の位置関係は崩したくないので、
+        // 全体を同じ量だけずらして、左上のノードがその場所に来るようにする。
+        var siblings = ChildrenOf(target);
+        var offsetX = target.X + target.Width + HorizontalGap - created.Min(n => n.X);
+        var offsetY = (siblings.Count == 0 ? target.Y : siblings.Max(n => n.Y + n.Height) + VerticalGap)
+                      - created.Min(n => n.Y);
+
+        foreach (var node in created)
+        {
+            node.X += offsetX;
+            node.Y += offsetY;
+        }
+
+        foreach (var root in roots)
+        {
+            root.Parent = target;
+        }
+
+        foreach (var node in created)
+        {
+            AddNode(node);
+        }
+
+        SetSelection(roots, roots[^1]);
+        IsDirty = true;
+
+        _history.Push(new DelegateUndoableAction(
+            undo: () =>
+            {
+                SelectedNode = target;
+                foreach (var node in created)
+                {
+                    RemoveNode(node);
+                }
+
+                IsDirty = true;
+            },
+            redo: () =>
+            {
+                foreach (var node in created)
+                {
+                    AddNode(node);
+                }
+
+                SetSelection(roots, roots[^1]);
+                IsDirty = true;
+            }));
+    }
+
+    /// <summary>
+    /// 選択のうち、他の選択ノードの子孫になっていないものだけを返す。
+    /// 親と子を両方選んでいても、部分木を二重に扱わないようにするため。
+    /// </summary>
+    private List<NodeViewModel> SelectionRoots()
+    {
+        var selected = SelectedNodes.ToHashSet();
+        return SelectedNodes.Where(node => !HasSelectedAncestor(node, selected)).ToList();
+    }
+
+    private static bool HasSelectedAncestor(NodeViewModel node, HashSet<NodeViewModel> selected)
+    {
+        for (var current = node.Parent; current is not null; current = current.Parent)
+        {
+            if (selected.Contains(current))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>コピー対象の部分木を、保存ファイルと同じ形の「かたまり」にする。</summary>
+    private MindMapDocument BuildFragment(IReadOnlyList<NodeViewModel> roots)
+    {
+        var nodes = new List<NodeViewModel>();
+        foreach (var node in roots.SelectMany(CollectSubtree))
+        {
+            if (!nodes.Contains(node))
+            {
+                nodes.Add(node);
+            }
+        }
+
+        var ids = nodes.Select(n => n.Id).ToHashSet();
+
+        return new MindMapDocument
+        {
+            Version = MindMapDocument.CurrentVersion,
+
+            // かたまりの外にいる親は連れて行けないので、切り離してルートにする。
+            Nodes = nodes
+                .Select(n => ToDto(n, n.Parent is { } parent && ids.Contains(parent.Id) ? parent.Id : null))
+                .ToList(),
+        };
+    }
+
+    /// <summary>
+    /// かたまりの中身をノードとして作り直す。親から順に並べて返すので、
+    /// 呼び出し側はその順に <see cref="AddNode"/> すれば接続線が正しく張られる。
+    /// </summary>
+    private static List<NodeViewModel> MaterializeFragment(
+        MindMapDocument fragment,
+        out List<NodeViewModel> roots)
+    {
+        var byOldId = new Dictionary<Guid, NodeViewModel>();
+        var pairs = new List<(MindMapNodeDto Dto, NodeViewModel Node)>();
+
+        foreach (var dto in fragment.Nodes)
+        {
+            // Id が重複した壊れたデータは、最初の 1 つだけ拾う。
+            if (byOldId.ContainsKey(dto.Id))
+            {
+                continue;
+            }
+
+            // 貼り付けたノードは元とは別物なので Id は振り直す（同じファイルに貼っても衝突しない）。
+            var node = new NodeViewModel(Guid.NewGuid(), dto.ResolveTitle(), dto.Body, dto.X, dto.Y, dto.Link)
+            {
+                IsCollapsed = dto.Collapsed,
+            };
+
+            // 制作日・更新日は引き継ぐ。別のファイルへ移したときに、いつ書いたものかを失わないため。
+            if (dto.CreatedAt is { } createdAt)
+            {
+                node.CreatedAt = createdAt;
+            }
+
+            if (dto.UpdatedAt is { } updatedAt)
+            {
+                node.UpdatedAt = updatedAt;
+            }
+
+            byOldId[dto.Id] = node;
+            pairs.Add((dto, node));
+        }
+
+        foreach (var (dto, node) in pairs)
+        {
+            if (dto.ParentId is { } parentId
+                && byOldId.TryGetValue(parentId, out var parent)
+                && !CreatesCycle(node, parent))
+            {
+                node.Parent = parent;
+            }
+        }
+
+        var all = pairs.Select(p => p.Node).ToList();
+        roots = all.Where(n => n.Parent is null).ToList();
+
+        var ordered = new List<NodeViewModel>();
+        var queue = new Queue<NodeViewModel>(roots);
+
+        while (queue.Count > 0)
+        {
+            var current = queue.Dequeue();
+            ordered.Add(current);
+
+            foreach (var child in all.Where(n => ReferenceEquals(n.Parent, current)))
+            {
+                queue.Enqueue(child);
+            }
+        }
+
+        return ordered;
     }
 
     private void BeginEditSelectedNode()
@@ -543,9 +898,21 @@ public sealed class DocumentViewModel : ReactiveObject
                 .Where(e => e.PropertyName is nameof(NodeViewModel.Title)
                     or nameof(NodeViewModel.Body)
                     or nameof(NodeViewModel.Link)
+                    or nameof(NodeViewModel.IsCollapsed)
                     or nameof(NodeViewModel.X)
                     or nameof(NodeViewModel.Y))
-                .Subscribe(_ => IsDirty = true),
+                .Subscribe(e =>
+                {
+                    // 更新日は「内容」を変えたときだけ進める。位置移動や表示の大小は含めない。
+                    if (e.PropertyName is nameof(NodeViewModel.Title)
+                        or nameof(NodeViewModel.Body)
+                        or nameof(NodeViewModel.Link))
+                    {
+                        node.UpdatedAt = DateTimeOffset.Now;
+                    }
+
+                    IsDirty = true;
+                }),
             node.WhenAnyValue(n => n.IsEditing)
                 .Skip(1)
                 .Subscribe(isEditing => OnEditingChanged(node, isEditing)));
@@ -608,12 +975,26 @@ public sealed class DocumentViewModel : ReactiveObject
             subscription.Dispose();
         }
 
+        // 消えたノードを選んだままにしない。
+        if (SelectedNodes.Remove(node))
+        {
+            node.IsSelected = false;
+
+            if (ReferenceEquals(_selectedNode, node))
+            {
+                this.RaiseAndSetIfChanged(
+                    ref _selectedNode,
+                    SelectedNodes.LastOrDefault(),
+                    nameof(SelectedNode));
+            }
+        }
+
         Nodes.Remove(node);
     }
 
     private void Clear()
     {
-        SelectedNode = null;
+        ClearSelection();
         _activeEdit = null;
 
         foreach (var connection in Connections)
@@ -635,18 +1016,21 @@ public sealed class DocumentViewModel : ReactiveObject
     private MindMapDocument BuildDocument() => new()
     {
         Version = MindMapDocument.CurrentVersion,
-        Nodes = Nodes
-            .Select(n => new MindMapNodeDto
-            {
-                Id = n.Id,
-                ParentId = n.Parent?.Id,
-                Title = n.Title,
-                Body = n.Body,
-                Link = n.Link,
-                X = n.X,
-                Y = n.Y,
-            })
-            .ToList(),
+        Nodes = Nodes.Select(n => ToDto(n, n.Parent?.Id)).ToList(),
+    };
+
+    private static MindMapNodeDto ToDto(NodeViewModel node, Guid? parentId) => new()
+    {
+        Id = node.Id,
+        ParentId = parentId,
+        Title = node.Title,
+        Body = node.Body,
+        Link = node.Link,
+        Collapsed = node.IsCollapsed,
+        CreatedAt = node.CreatedAt,
+        UpdatedAt = node.UpdatedAt,
+        X = node.X,
+        Y = node.Y,
     };
 
     private void LoadDocument(MindMapDocument document)
@@ -658,7 +1042,25 @@ public sealed class DocumentViewModel : ReactiveObject
         foreach (var dto in document.Nodes)
         {
             // 旧形式（Version 1）のファイルはタイトルが Text 欄に入っている。
-            byId[dto.Id] = new NodeViewModel(dto.Id, dto.ResolveTitle(), dto.Body, dto.X, dto.Y, dto.Link);
+            // IsCollapsed は AddNode で監視を張る前に入れておく（読み込みで未保存扱いにしないため）。
+            var node = new NodeViewModel(dto.Id, dto.ResolveTitle(), dto.Body, dto.X, dto.Y, dto.Link)
+            {
+                IsCollapsed = dto.Collapsed,
+            };
+
+            // 保存済みの日時があれば復元する。無い（Version 4 以前の）ファイルは
+            // コンストラクタが入れた現在時刻を制作日・更新日として使う。
+            if (dto.CreatedAt is { } createdAt)
+            {
+                node.CreatedAt = createdAt;
+            }
+
+            if (dto.UpdatedAt is { } updatedAt)
+            {
+                node.UpdatedAt = updatedAt;
+            }
+
+            byId[dto.Id] = node;
         }
 
         foreach (var dto in document.Nodes)

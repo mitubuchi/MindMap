@@ -24,6 +24,10 @@
         <KeyBinding Key="Y" Modifiers="Ctrl" Command="{Binding ActiveDocument.RedoCommand}" />
         <KeyBinding Key="Z" Modifiers="Ctrl+Shift" Command="{Binding ActiveDocument.RedoCommand}" />
         <!-- 編集中はコマンドが無効になるので、キーはそのままテキストボックスに届く -->
+        <KeyBinding Key="X" Modifiers="Ctrl" Command="{Binding ActiveDocument.CutCommand}" />
+        <KeyBinding Key="C" Modifiers="Ctrl" Command="{Binding ActiveDocument.CopyCommand}" />
+        <KeyBinding Key="V" Modifiers="Ctrl" Command="{Binding ActiveDocument.PasteCommand}" />
+        <KeyBinding Key="A" Modifiers="Ctrl" Command="{Binding ActiveDocument.SelectAllCommand}" />
         <KeyBinding Key="Tab" Command="{Binding ActiveDocument.AddChildCommand}" />
         <KeyBinding Key="Insert" Command="{Binding ActiveDocument.AddChildCommand}" />
         <KeyBinding Key="Return" Command="{Binding ActiveDocument.AddSiblingCommand}" />
@@ -70,6 +74,22 @@
                         ToolTip="Ctrl+Y" />
                 <Separator />
                 <Button Style="{StaticResource ToolBarButton}"
+                        Command="{Binding ActiveDocument.CutCommand}"
+                        Tag="{StaticResource Icon.Cut}"
+                        Content="切り取り"
+                        ToolTip="選択中のノードとその子孫を切り取る (Ctrl+X)" />
+                <Button Style="{StaticResource ToolBarButton}"
+                        Command="{Binding ActiveDocument.CopyCommand}"
+                        Tag="{StaticResource Icon.Copy}"
+                        Content="コピー"
+                        ToolTip="選択中のノードとその子孫をコピー (Ctrl+C)" />
+                <Button Style="{StaticResource ToolBarButton}"
+                        Command="{Binding ActiveDocument.PasteCommand}"
+                        Tag="{StaticResource Icon.Paste}"
+                        Content="貼り付け"
+                        ToolTip="選択中のノードの子として貼り付け（別のタブやウィンドウからも可） (Ctrl+V)" />
+                <Separator />
+                <Button Style="{StaticResource ToolBarButton}"
                         Command="{Binding ActiveDocument.AddChildCommand}"
                         Tag="{StaticResource Icon.AddChild}"
                         Content="子ノード"
@@ -111,10 +131,13 @@
         <StatusBar DockPanel.Dock="Bottom">
             <StatusBarItem>
                 <TextBlock Foreground="#666"
-                           Text="ドラッグで移動 / ダブルクリックで編集 / タイトル欄で Enter を押すと内容欄へ / Ctrl+Enter で確定 / Ctrl+ホイールで拡大縮小" />
+                           Text="ドラッグで移動 / ダブルクリックで編集 / Ctrl+クリックや余白のドラッグで複数選択 / Ctrl+Enter で確定 / Ctrl+ホイールで拡大縮小" />
             </StatusBarItem>
             <StatusBarItem HorizontalAlignment="Right">
                 <StackPanel Orientation="Horizontal">
+                    <TextBlock Foreground="#666"
+                               Margin="0,0,12,0"
+                               Text="{Binding ActiveDocument.SelectedNodes.Count, StringFormat={}{0} 個選択}" />
                     <TextBlock Foreground="#666" Text="{Binding ActiveDocument.Zoom, StringFormat={}{0:P0}}" />
                     <TextBlock Foreground="#666"
                                Margin="12,0,0,0"
@@ -168,7 +191,9 @@
                               Width="3000"
                               Height="2000"
                               Background="Transparent"
-                              MouseLeftButtonDown="CanvasRoot_MouseLeftButtonDown">
+                              MouseLeftButtonDown="CanvasRoot_MouseLeftButtonDown"
+                              MouseMove="CanvasRoot_MouseMove"
+                              MouseLeftButtonUp="CanvasRoot_MouseLeftButtonUp">
                             <Grid.LayoutTransform>
                                 <ScaleTransform ScaleX="{Binding Zoom}" ScaleY="{Binding Zoom}" />
                             </Grid.LayoutTransform>
@@ -202,6 +227,13 @@
                                     <Style TargetType="ContentPresenter">
                                         <Setter Property="Canvas.Left" Value="{Binding X}" />
                                         <Setter Property="Canvas.Top" Value="{Binding Y}" />
+                                        <!-- 選択中のノードは重なり順を上げ、他のノードに隠れないようにする。
+                                             選択は常に 1 つだけなので、最前面に来るのはそのノードだけ。 -->
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                <Setter Property="Panel.ZIndex" Value="1000" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
                                     </Style>
                                 </ItemsControl.ItemContainerStyle>
                                 <ItemsControl.ItemTemplate>
@@ -214,6 +246,7 @@
                                                 Background="White"
                                                 Cursor="SizeAll"
                                                 AllowDrop="True"
+                                                Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}"
                                                 SizeChanged="Node_SizeChanged"
                                                 MouseLeftButtonDown="Node_MouseLeftButtonDown"
                                                 MouseMove="Node_MouseMove"
@@ -223,6 +256,22 @@
                                                 Drop="Node_Drop">
                                             <Border.ContextMenu>
                                                 <ContextMenu>
+                                                    <!-- 切り取り・コピー・貼り付けはドキュメント側のコマンド。
+                                                         ContextMenu は visual tree の外にいるので、
+                                                         開く元の Border に持たせたウィンドウの ViewModel から辿る。 -->
+                                                    <MenuItem Header="切り取り"
+                                                              InputGestureText="Ctrl+X"
+                                                              Command="{Binding PlacementTarget.Tag.ActiveDocument.CutCommand,
+                                                                                RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                                    <MenuItem Header="コピー"
+                                                              InputGestureText="Ctrl+C"
+                                                              Command="{Binding PlacementTarget.Tag.ActiveDocument.CopyCommand,
+                                                                                RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                                    <MenuItem Header="貼り付け（この下に）"
+                                                              InputGestureText="Ctrl+V"
+                                                              Command="{Binding PlacementTarget.Tag.ActiveDocument.PasteCommand,
+                                                                                RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                                    <Separator />
                                                     <MenuItem Header="リンクを開く"
                                                               IsEnabled="{Binding HasLink}"
                                                               Click="ContextOpenLink_Click" />
@@ -251,11 +300,12 @@
                                                 <!-- 表示：タイトルは中央、内容は左寄せ。内容が空なら区切り線ごと省く。 -->
                                                 <StackPanel VerticalAlignment="Center"
                                                             Visibility="{Binding IsEditing, Converter={StaticResource InverseBoolToVis}}">
-                                                    <!-- リンクがあるときだけ、タイトルの右にアイコンが出る。
-                                                         リンクなしなら右の列が幅 0 になり、タイトルは中央のままになる。 -->
+                                                    <!-- タイトルの右に、リンクアイコンと表示の大小を切り替えるアイコンが並ぶ。
+                                                         どちらも出ないときは右の 2 列が幅 0 になり、タイトルは中央のままになる。 -->
                                                     <Grid>
                                                         <Grid.ColumnDefinitions>
                                                             <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
                                                             <ColumnDefinition Width="Auto" />
                                                         </Grid.ColumnDefinitions>
                                                         <TextBlock Text="{Binding Title}"
@@ -272,17 +322,28 @@
                                                                 Command="{Binding DataContext.OpenLinkCommand,
                                                                                   RelativeSource={RelativeSource AncestorType=Window}}"
                                                                 CommandParameter="{Binding}" />
+                                                        <!-- 本文があるノードだけ、大小を切り替えるボタンを出す。
+                                                             タイトルだけのノードにはたたむものがないので出さない。 -->
+                                                        <Button Grid.Column="2"
+                                                                Margin="2,0,0,0"
+                                                                VerticalAlignment="Center"
+                                                                Style="{StaticResource NodeToggleButton}"
+                                                                Visibility="{Binding HasBody, Converter={StaticResource BoolToVis}}"
+                                                                ToolTip="表示の大小を切り替え（タイトルのみ／本文つき）"
+                                                                Command="{Binding DataContext.ToggleCollapseCommand,
+                                                                                  RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                CommandParameter="{Binding}" />
                                                     </Grid>
                                                     <Border Height="1"
                                                             Margin="0,6"
                                                             Background="#E3E8EE"
-                                                            Visibility="{Binding HasBody, Converter={StaticResource BoolToVis}}" />
+                                                            Visibility="{Binding IsBodyVisible, Converter={StaticResource BoolToVis}}" />
                                                     <TextBlock Text="{Binding Body}"
                                                                TextAlignment="Left"
                                                                TextWrapping="Wrap"
                                                                FontSize="12"
                                                                Foreground="#5B6673"
-                                                               Visibility="{Binding HasBody, Converter={StaticResource BoolToVis}}" />
+                                                               Visibility="{Binding IsBodyVisible, Converter={StaticResource BoolToVis}}" />
                                                 </StackPanel>
 
                                                 <!-- 編集：タイトル欄は 1 行のみ。Enter で内容欄に移る。
@@ -344,6 +405,16 @@
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
+
+                            <!-- 範囲選択の枠。余白をドラッグしている間だけ出す。
+                                 ノードのクリックを邪魔しないよう、当たり判定は持たせない。 -->
+                            <Canvas IsHitTestVisible="False">
+                                <Rectangle x:Name="SelectionBox"
+                                           Visibility="Collapsed"
+                                           Fill="#282F80ED"
+                                           Stroke="#2F80ED"
+                                           StrokeThickness="1" />
+                            </Canvas>
                         </Grid>
                     </ScrollViewer>
                 </DataTemplate>

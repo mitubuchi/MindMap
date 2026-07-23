@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Shapes;
 using System.Windows.Threading;
 using Microsoft.Win32;
 using MindMap.Services;
@@ -21,11 +22,20 @@ public partial class MainWindow : Window, IViewFor<MainWindowViewModel>
         typeof(MainWindow),
         new PropertyMetadata(null));
 
-    private NodeViewModel? _draggingNode;
+    /// <summary>ドラッグ中のノードと、掴んだ時点の位置。複数選択なら選択ぶんすべてが入る。</summary>
+    private List<(NodeViewModel Node, double X, double Y)> _dragOrigins = new();
+
     private DocumentViewModel? _draggingDocument;
     private FrameworkElement? _draggingCanvas;
     private Point _dragStartPointerPosition;
-    private Point _dragStartNodePosition;
+
+    /// <summary>余白のドラッグによる範囲選択。</summary>
+    private DocumentViewModel? _bandDocument;
+
+    private FrameworkElement? _bandCanvas;
+    private Shape? _bandRectangle;
+    private Point _bandStart;
+    private bool _bandAdditive;
 
     private bool _isPanning;
     private Point _panStartPointerPosition;
@@ -206,17 +216,6 @@ public partial class MainWindow : Window, IViewFor<MainWindowViewModel>
         }
     }
 
-    private void CanvasRoot_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        // 余白のクリックで選択解除。
-        if (sender is FrameworkElement { DataContext: DocumentViewModel document })
-        {
-            document.SelectedNode = null;
-        }
-
-        Keyboard.ClearFocus();
-    }
-
     private void Node_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (sender is not FrameworkElement { DataContext: NodeViewModel node } element
@@ -225,13 +224,32 @@ public partial class MainWindow : Window, IViewFor<MainWindowViewModel>
             return;
         }
 
-        document.SelectedNode = node;
         e.Handled = true;
+
+        // Ctrl / Shift 付きのクリックは選択の足し引きだけ。移動も編集も始めない。
+        if ((Keyboard.Modifiers & ModifierKeys.Control) != 0)
+        {
+            document.ToggleSelection(node);
+            return;
+        }
+
+        if ((Keyboard.Modifiers & ModifierKeys.Shift) != 0)
+        {
+            document.AddToSelection(node);
+            return;
+        }
 
         if (e.ClickCount >= 2)
         {
+            document.SelectedNode = node;
             node.IsEditing = true;
             return;
+        }
+
+        // 複数選択のうちの 1 つを掴んだときは選択を崩さない（まとめて動かすため）。
+        if (!document.SelectedNodes.Contains(node))
+        {
+            document.SelectedNode = node;
         }
 
         // 編集中のノードはドラッグせず、クリックはカーソル移動に任せる。
@@ -246,29 +264,44 @@ public partial class MainWindow : Window, IViewFor<MainWindowViewModel>
             return;
         }
 
-        _draggingNode = node;
+        var moving = document.SelectedNodes.Contains(node)
+            ? document.SelectedNodes.ToList()
+            : new List<NodeViewModel> { node };
+
+        _dragOrigins = moving.Select(n => (Node: n, n.X, n.Y)).ToList();
         _draggingDocument = document;
         _draggingCanvas = canvas;
         _dragStartPointerPosition = e.GetPosition(canvas);
-        _dragStartNodePosition = new Point(node.X, node.Y);
         element.CaptureMouse();
     }
 
     private void Node_MouseMove(object sender, MouseEventArgs e)
     {
-        if (_draggingNode is not { } node || _draggingCanvas is not { } canvas
+        if (_dragOrigins.Count == 0 || _draggingCanvas is not { } canvas
             || e.LeftButton != MouseButtonState.Pressed)
         {
             return;
         }
 
         var current = e.GetPosition(canvas);
-        var x = _dragStartNodePosition.X + (current.X - _dragStartPointerPosition.X);
-        var y = _dragStartNodePosition.Y + (current.Y - _dragStartPointerPosition.Y);
+        var deltaX = current.X - _dragStartPointerPosition.X;
+        var deltaY = current.Y - _dragStartPointerPosition.Y;
 
         // キャンバスの外にノードが出て行方不明にならないよう内側に留める。
-        node.X = Math.Clamp(x, 0, Math.Max(0, canvas.Width - node.Width));
-        node.Y = Math.Clamp(y, 0, Math.Max(0, canvas.Height - node.Height));
+        // 複数を動かすときは、位置関係が崩れないよう移動量そのものを制限する。
+        var minX = _dragOrigins.Max(o => -o.X);
+        var maxX = _dragOrigins.Min(o => Math.Max(0, canvas.Width - o.Node.Width) - o.X);
+        var minY = _dragOrigins.Max(o => -o.Y);
+        var maxY = _dragOrigins.Min(o => Math.Max(0, canvas.Height - o.Node.Height) - o.Y);
+
+        deltaX = Math.Clamp(deltaX, minX, Math.Max(minX, maxX));
+        deltaY = Math.Clamp(deltaY, minY, Math.Max(minY, maxY));
+
+        foreach (var (node, originX, originY) in _dragOrigins)
+        {
+            node.X = originX + deltaX;
+            node.Y = originY + deltaY;
+        }
     }
 
     private void Node_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
@@ -278,16 +311,103 @@ public partial class MainWindow : Window, IViewFor<MainWindowViewModel>
             element.ReleaseMouseCapture();
         }
 
-        if (_draggingNode is { } node)
+        if (_dragOrigins.Count > 0 && _draggingDocument is { } document)
         {
-            // ドラッグ全体を 1 回の Undo にまとめる。
-            _draggingDocument?.CompleteNodeDrag(node, _dragStartNodePosition.X, _dragStartNodePosition.Y);
+            // ドラッグ全体を 1 回の Undo にまとめる（動いていなければ何も積まれない）。
+            document.CompleteNodeDrag(_dragOrigins);
+
+            // 複数選択のノードを動かさずに離したら、そのノードだけの選択に絞る。
+            // 押した時点で絞ってしまうと、まとめて動かすドラッグが始められない。
+            var moved = _dragOrigins.Any(o => o.Node.X != o.X || o.Node.Y != o.Y);
+            if (!moved && _dragOrigins.Count > 1 && sender is FrameworkElement { DataContext: NodeViewModel node })
+            {
+                document.SelectedNode = node;
+            }
         }
 
-        _draggingNode = null;
+        _dragOrigins = new();
         _draggingDocument = null;
         _draggingCanvas = null;
     }
+
+    // ------------------------------------------------------------ 範囲選択
+
+    /// <summary>余白を押したところから、囲んだノードをまとめて選ぶドラッグを始める。</summary>
+    private void CanvasRoot_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: DocumentViewModel document } canvas)
+        {
+            return;
+        }
+
+        // Ctrl / Shift を押していれば今の選択に足す。押していなければ、余白のクリックで選択解除。
+        _bandAdditive = (Keyboard.Modifiers & (ModifierKeys.Control | ModifierKeys.Shift)) != 0;
+        if (!_bandAdditive)
+        {
+            document.ClearSelection();
+        }
+
+        _bandDocument = document;
+        _bandCanvas = canvas;
+        _bandStart = e.GetPosition(canvas);
+        _bandRectangle = FindNamedDescendant(canvas, "SelectionBox") as Shape;
+        canvas.CaptureMouse();
+
+        Keyboard.ClearFocus();
+    }
+
+    private void CanvasRoot_MouseMove(object sender, MouseEventArgs e)
+    {
+        if (_bandCanvas is not { } canvas || _bandRectangle is not { } box
+            || e.LeftButton != MouseButtonState.Pressed)
+        {
+            return;
+        }
+
+        var band = BandRect(e.GetPosition(canvas));
+
+        Canvas.SetLeft(box, band.X);
+        Canvas.SetTop(box, band.Y);
+        box.Width = band.Width;
+        box.Height = band.Height;
+        box.Visibility = Visibility.Visible;
+    }
+
+    private void CanvasRoot_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (_bandCanvas is not { } canvas)
+        {
+            return;
+        }
+
+        canvas.ReleaseMouseCapture();
+
+        if (_bandRectangle is { } box)
+        {
+            box.Visibility = Visibility.Collapsed;
+        }
+
+        // 枠を出さないまま離した（ただのクリック）ときは選択を変えない。
+        var band = BandRect(e.GetPosition(canvas));
+        if (_bandDocument is { } document && band is { Width: >= 3 } or { Height: >= 3 })
+        {
+            var hits = document.Nodes
+                .Where(n => band.IntersectsWith(new Rect(n.X, n.Y, n.Width, n.Height)))
+                .ToList();
+
+            document.SelectNodes(hits, _bandAdditive);
+        }
+
+        _bandDocument = null;
+        _bandCanvas = null;
+        _bandRectangle = null;
+    }
+
+    private Rect BandRect(Point current) => new(
+        Math.Min(_bandStart.X, current.X),
+        Math.Min(_bandStart.Y, current.Y),
+        Math.Abs(current.X - _bandStart.X),
+        Math.Abs(current.Y - _bandStart.Y));
 
     // ------------------------------------------------------------ ノードのリンク
 
@@ -316,11 +436,15 @@ public partial class MainWindow : Window, IViewFor<MainWindowViewModel>
         e.Handled = true;
     }
 
-    /// <summary>右クリックでそのノードを選んでおく（コンテキストメニューの対象を確定させる）。</summary>
+    /// <summary>
+    /// 右クリックでそのノードを選んでおく（コンテキストメニューの対象を確定させる）。
+    /// すでに複数選択に入っているノードなら、選択を崩さずそのまま対象にする。
+    /// </summary>
     private void Node_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (sender is FrameworkElement { DataContext: NodeViewModel node } element
-            && FindDocument(element) is { } document)
+            && FindDocument(element) is { } document
+            && !document.SelectedNodes.Contains(node))
         {
             document.SelectedNode = node;
         }
@@ -545,6 +669,30 @@ public partial class MainWindow : Window, IViewFor<MainWindowViewModel>
             if (current is FrameworkElement { DataContext: DocumentViewModel document })
             {
                 return document;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// テンプレートの中にある要素を名前で探す。DataTemplate 内の x:Name は
+    /// ウィンドウのフィールドにならないので、visual tree を下って見つける。
+    /// </summary>
+    private static FrameworkElement? FindNamedDescendant(DependencyObject start, string name)
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(start); i++)
+        {
+            var child = VisualTreeHelper.GetChild(start, i);
+
+            if (child is FrameworkElement element && element.Name == name)
+            {
+                return element;
+            }
+
+            if (FindNamedDescendant(child, name) is { } found)
+            {
+                return found;
             }
         }
 

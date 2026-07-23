@@ -11,11 +11,12 @@ public sealed class MindMapDocument
     /// <summary>
     /// ファイル形式のバージョン。
     /// 1 = タイトルのみ（Text 欄）／2 = タイトルと内容に分離（Title / Body 欄）／
-    /// 3 = リンク（Link 欄）を追加。
+    /// 3 = リンク（Link 欄）を追加／4 = 小さく表示するか（Collapsed 欄）を追加／
+    /// 5 = 制作日・更新日（CreatedAt / UpdatedAt 欄）を追加。
     /// </summary>
     public int Version { get; set; } = CurrentVersion;
 
-    public const int CurrentVersion = 3;
+    public const int CurrentVersion = 5;
 
     public List<MindMapNodeDto> Nodes { get; set; } = new();
 }
@@ -35,6 +36,17 @@ public sealed class MindMapNodeDto
 
     /// <summary>URL またはファイルパス。空ならリンクなし。</summary>
     public string Link { get; set; } = string.Empty;
+
+    /// <summary>小さく表示する（タイトルのみ）なら true。既定は false。</summary>
+    public bool Collapsed { get; set; }
+
+    /// <summary>
+    /// 制作日と更新日。UI には出さず、後のデータ処理のために持つ。
+    /// Version 5 より前の古いファイルには無いので null になり、読み込み時に補う。
+    /// </summary>
+    public DateTimeOffset? CreatedAt { get; set; }
+
+    public DateTimeOffset? UpdatedAt { get; set; }
 
     /// <summary>
     /// バージョン 1 でタイトルが入っていた欄。古いファイルを読むためだけに残してあり、

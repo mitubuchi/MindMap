@@ -4,7 +4,7 @@
 ; を実行すると installer\Output に Setup.exe が作られる。
 
 #define MyAppName "MindMap"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.1.0"
 #define MyAppPublisher "MindMap"
 #define MyAppExeName "MindMap.exe"
 ; リポジトリのルート（このスクリプトの 1 つ上）を基準にする。

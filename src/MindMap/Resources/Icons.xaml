@@ -27,6 +27,18 @@
     <PathGeometry x:Key="Icon.AddSibling"
                   Figures="M8,3 H16 V8 H8 Z M12,8 V13 M6,13 H18 V21 H6 Z M12,15 V19 M10,17 H14" />
 
+    <!-- 切り取り：交差する 2 枚の刃と、下の 2 つの持ち手 -->
+    <PathGeometry x:Key="Icon.Cut"
+                  Figures="M6,3 L15,16 M18,3 L9,16 M4,19.5 A2.5,2.5 0 1 0 9,19.5 A2.5,2.5 0 1 0 4,19.5
+                           M15,19.5 A2.5,2.5 0 1 0 20,19.5 A2.5,2.5 0 1 0 15,19.5" />
+
+    <!-- コピー：同じ紙が 2 枚重なった形 -->
+    <PathGeometry x:Key="Icon.Copy" Figures="M9,3 H20 V15 H16 M4,8 H16 V21 H4 Z" />
+
+    <!-- 貼り付け：クリップボードに紙をはさんだ形 -->
+    <PathGeometry x:Key="Icon.Paste"
+                  Figures="M9,4 H5 V21 H19 V4 H15 M9,2.5 H15 V6 H9 Z M8,11 H16 M8,15 H16" />
+
     <PathGeometry x:Key="Icon.Edit" Figures="M4,20 V16 L16,4 L20,8 L8,20 Z M14,6 L18,10" />
 
     <PathGeometry x:Key="Icon.Delete"
@@ -45,6 +57,11 @@
 
     <!-- リンク：枠の外に飛び出す矢印 -->
     <PathGeometry x:Key="Icon.Link" Figures="M13,4 H20 V11 M20,4 L11,13 M17,14 V20 H4 V7 H10" />
+
+    <!-- 展開中に出す「小さくたたむ」印（上向き山）／たたんだときに出す「広げる」印（下向き山）。 -->
+    <PathGeometry x:Key="Icon.ChevronUp" Figures="M6,15 L12,9 L18,15" />
+
+    <PathGeometry x:Key="Icon.ChevronDown" Figures="M6,9 L12,15 L18,9" />
 
     <!-- ノードのタイトル脇に出すリンクボタン。 -->
     <Style x:Key="NodeLinkButton" TargetType="Button">
@@ -74,6 +91,49 @@
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="Backdrop" Property="Background" Value="#E4EEFC" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        ノードのタイトル脇に出す、表示の大小を切り替えるボタン。
+        DataContext のノードの IsCollapsed に応じて山の向きを変える
+        （展開中は上向き＝たたむ、たたみ中は下向き＝広げる）。
+    -->
+    <Style x:Key="NodeToggleButton" TargetType="Button">
+        <Setter Property="Width" Value="18" />
+        <Setter Property="Height" Value="18" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Backdrop"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="3">
+                        <Path x:Name="Glyph"
+                              Data="{StaticResource Icon.ChevronUp}"
+                              Width="12"
+                              Height="12"
+                              Stretch="Uniform"
+                              Stroke="#8A94A0"
+                              StrokeThickness="1.7"
+                              StrokeLineJoin="Round"
+                              StrokeStartLineCap="Round"
+                              StrokeEndLineCap="Round"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <DataTrigger Binding="{Binding IsCollapsed}" Value="True">
+                            <Setter TargetName="Glyph" Property="Data" Value="{StaticResource Icon.ChevronDown}" />
+                        </DataTrigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Backdrop" Property="Background" Value="#DDE3EA" />
+                            <Setter TargetName="Glyph" Property="Stroke" Value="#3C4652" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

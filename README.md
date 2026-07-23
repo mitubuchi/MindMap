@@ -8,6 +8,8 @@ MVVM フレームワークに [ReactiveUI](https://www.reactiveui.net/) を使�
 ## 主な機能
 
 - **ノード編集** — 追加（子 / 兄弟）、その場編集、部分木ごとの削除、ドラッグでの移動
+- **複数選択** — Ctrl / Shift + クリック、余白のドラッグ（範囲選択）、Ctrl+A（全選択）で複数のノードをまとめて選択・移動
+- **切り取り / コピー / 貼り付け** — 選択したノードを部分木ごと。タブや別ウィンドウの MindMap をまたいで貼り付けられる（クリップボード経由）
 - **タイトルと内容** — 1 行のタイトル（中央寄せ）と、複数行の内容（左寄せ）に分離
 - **リンク** — ノードに URL やファイルへのリンクを設定
   - URL は既定のブラウザーで開く
@@ -28,6 +30,8 @@ MVVM フレームワークに [ReactiveUI](https://www.reactiveui.net/) を使�
 | `Ctrl+S` / `Ctrl+Shift+S` | 保存 / 名前を付けて保存 |
 | `Ctrl+W` | タブを閉じる |
 | `Ctrl+Z` / `Ctrl+Y` | 元に戻す / やり直し |
+| `Ctrl+X` / `Ctrl+C` / `Ctrl+V` | 切り取り / コピー / 貼り付け |
+| `Ctrl+A` | すべてのノードを選択 |
 | `Tab` / `Insert` | 子ノードを追加 |
 | `Enter` | 兄弟ノードを追加 |
 | `F2` | 選択中のノードを編集 |
@@ -36,6 +40,9 @@ MVVM フレームワークに [ReactiveUI](https://www.reactiveui.net/) を使�
 
 ノードの編集中は、タイトル欄で `Enter` を押すと内容欄へ移動し、`Ctrl+Enter` で確定、
 `Esc` で編集前に戻します。
+
+複数選択は、`Ctrl+クリック` で 1 つずつ足し引き、`Shift+クリック` で追加、
+何もない余白をドラッグすると範囲選択できます。複数選んだままドラッグすると、まとめて移動します。
 
 ## 動作環境
 
@@ -63,7 +70,7 @@ dotnet publish src/MindMap/MindMap.csproj -c Release -r win-x64 --self-contained
 ISCC.exe installer/MindMap.iss
 ```
 
-`installer/Output/MindMap-1.0.0-Setup.exe` が生成されます。管理者権限なしでユーザー領域に
+`installer/Output/MindMap-1.1.0-Setup.exe` が生成されます。管理者権限なしでユーザー領域に
 インストールでき、スタートメニュー登録とアンインストーラーが付きます。
 
 ### ポータブル ZIP
@@ -78,7 +85,7 @@ dotnet publish src/MindMap/MindMap.csproj -c Release -r win-x64 --self-contained
 powershell -ExecutionPolicy Bypass -File installer/package-zip.ps1
 ```
 
-`installer/Output/MindMap-1.0.0-win-x64.zip` が生成されます。展開してできる `MindMap`
+`installer/Output/MindMap-1.1.0-win-x64.zip` が生成されます。展開してできる `MindMap`
 フォルダー内の `MindMap.exe` を実行するだけで動きます。
 
 ビルド済みのインストーラーと ZIP は [Releases](../../releases) からダウンロードできます。
