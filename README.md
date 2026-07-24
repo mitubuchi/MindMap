@@ -20,6 +20,7 @@ MVVM フレームワークに [ReactiveUI](https://www.reactiveui.net/) を使�
 - **Undo / Redo** — 追加・削除・編集・移動・リンク設定をまとめて元に戻せる
 - **表示** — ズーム（Ctrl+ホイール）、パン（中ボタンドラッグ）、ノードの自動サイズ調整
 - **ファイル入出力** — 新規・開く・保存・名前を付けて保存。未保存のまま閉じると確認
+- **ファイルの関連付け** — `.mindmap` を MindMap で開けるようインストーラーが登録。既定のアプリに設定すれば、ダブルクリックでそのまま開く
 
 ## キーボード操作
 
@@ -70,8 +71,23 @@ dotnet publish src/MindMap/MindMap.csproj -c Release -r win-x64 --self-contained
 ISCC.exe installer/MindMap.iss
 ```
 
-`installer/Output/MindMap-1.1.0-Setup.exe` が生成されます。管理者権限なしでユーザー領域に
+`installer/Output/MindMap-1.2.0-Setup.exe` が生成されます。管理者権限なしでユーザー領域に
 インストールでき、スタートメニュー登録とアンインストーラーが付きます。
+
+### ファイルの関連付け
+
+インストーラーは `.mindmap` を MindMap に関連付けるための情報を登録します
+（管理者権限なしでインストールした場合は、そのユーザーにのみ適用されます）。
+
+ただし Windows 10 / 11 では、既定のアプリをインストーラーから自動で決めることはできません。
+初回のみ、次のいずれかで MindMap を選んでください。
+
+- `.mindmap` ファイルを右クリック →「プログラムから開く」→「別のプログラムを選択」→ MindMap を選び、「常にこのアプリを使う」にチェック
+- 設定 →「アプリ」→「既定のアプリ」→ ファイルの種類で `.mindmap` を MindMap に設定
+
+以降はダブルクリックでそのまま開けます。コマンドラインからも
+`MindMap.exe "path\to\file.mindmap"` の形でファイルを指定して起動できます
+（複数指定すると、それぞれ別のタブで開きます）。
 
 ### ポータブル ZIP
 
@@ -85,7 +101,7 @@ dotnet publish src/MindMap/MindMap.csproj -c Release -r win-x64 --self-contained
 powershell -ExecutionPolicy Bypass -File installer/package-zip.ps1
 ```
 
-`installer/Output/MindMap-1.1.0-win-x64.zip` が生成されます。展開してできる `MindMap`
+`installer/Output/MindMap-1.2.0-win-x64.zip` が生成されます。展開してできる `MindMap`
 フォルダー内の `MindMap.exe` を実行するだけで動きます。
 
 ビルド済みのインストーラーと ZIP は [Releases](../../releases) からダウンロードできます。

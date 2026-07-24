@@ -17,7 +17,15 @@ public partial class App : Application
             .WithWpf()
             .Build();
 
-        MainWindow = new MainWindow();
-        MainWindow.Show();
+        var window = new MainWindow();
+        MainWindow = window;
+        window.Show();
+
+        // 拡張子の関連付けから起動されると、開くファイルが引数で渡ってくる。
+        // ダイアログの表示先が要るので、ウィンドウを出してから開く。
+        if (e.Args.Length > 0 && window.ViewModel is { } viewModel)
+        {
+            viewModel.OpenFiles(e.Args);
+        }
     }
 }

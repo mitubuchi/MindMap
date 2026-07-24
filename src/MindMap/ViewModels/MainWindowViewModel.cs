@@ -115,6 +115,38 @@ public sealed class MainWindowViewModel : ReactiveObject
         ActiveDocument = document;
     }
 
+    /// <summary>
+    /// コマンドラインで渡されたファイルを開く。拡張子の関連付けから起動されたとき、
+    /// エクスプローラーが対象のパスを引数で渡してくるため。
+    /// 起動直後の空タブは、ファイルが開けたなら残さず置き換える。
+    /// </summary>
+    public void OpenFiles(IEnumerable<string> paths)
+    {
+        // 置き換えてよいのは「まだ何もしていない、保存先の無いタブ」だけ。
+        var initial = Documents is [{ CurrentFilePath: null, IsDirty: false } only] ? only : null;
+
+        var opened = false;
+
+        foreach (var path in paths)
+        {
+            try
+            {
+                OpenInTab(path);
+                opened = true;
+            }
+            catch (Exception ex)
+            {
+                // 1 つ開けなくても、残りのファイルは開けるように続ける。
+                ShowError.Handle($"ファイルを開けませんでした。\n\n{path}\n\n{ex.Message}").Subscribe();
+            }
+        }
+
+        if (opened && initial is not null && Documents.Count > 1)
+        {
+            Documents.Remove(initial);
+        }
+    }
+
     private async Task OpenAsync()
     {
         var path = await ShowOpenFileDialog.Handle(Unit.Default);
