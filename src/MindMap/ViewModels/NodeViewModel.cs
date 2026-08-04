@@ -20,6 +20,7 @@ public sealed class NodeViewModel : ReactiveObject
     private bool _isSelected;
     private bool _isEditing;
     private bool _isCollapsed;
+    private bool _hasChildren;
 
     public NodeViewModel(Guid id, string title, string body, double x, double y, string link = "")
     {
@@ -51,6 +52,16 @@ public sealed class NodeViewModel : ReactiveObject
 
     /// <summary>ルートノードなら null。</summary>
     public NodeViewModel? Parent { get; set; }
+
+    /// <summary>
+    /// 子ノードがぶら下がっているかどうか。子の一覧はドキュメントが持っているので、
+    /// ノードの出入りに合わせてドキュメント側が入れ直す。
+    /// </summary>
+    public bool HasChildren
+    {
+        get => _hasChildren;
+        set => this.RaiseAndSetIfChanged(ref _hasChildren, value);
+    }
 
     /// <summary>1 行の見出し。中央寄せで表示される。</summary>
     public string Title

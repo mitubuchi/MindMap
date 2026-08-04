@@ -4,7 +4,7 @@
 ; を実行すると installer\Output に Setup.exe が作られる。
 
 #define MyAppName "MindMap"
-#define MyAppVersion "1.2.0"
+#define MyAppVersion "1.3.0"
 #define MyAppPublisher "MindMap"
 #define MyAppExeName "MindMap.exe"
 ; 拡張子と、その種類を表す内部名（ProgID）。

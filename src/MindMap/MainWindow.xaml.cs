@@ -485,6 +485,14 @@ public partial class MainWindow : Window, IViewFor<MainWindowViewModel>
         }
     }
 
+    private async void ContextExtractChildren_Click(object sender, RoutedEventArgs e)
+    {
+        if (NodeOf(sender) is { } node && DocumentOf(sender) is { } document)
+        {
+            await document.ExtractChildrenToFileAsync(node);
+        }
+    }
+
     private void ContextOpenLink_Click(object sender, RoutedEventArgs e)
     {
         if (NodeOf(sender) is { } node)

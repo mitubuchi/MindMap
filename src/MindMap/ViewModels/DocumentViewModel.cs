@@ -20,6 +20,9 @@ public sealed class DocumentViewModel : ReactiveObject
     private const double HorizontalGap = 72;
     private const double VerticalGap = 24;
 
+    /// <summary>別ファイルへ切り出した部分木を、新しいキャンバスの左上から離しておく余白。</summary>
+    private const double ExtractedMargin = 120;
+
     public const double MinZoom = 0.3;
     public const double MaxZoom = 3.0;
     private const double ZoomStep = 1.2;
@@ -547,7 +550,11 @@ public sealed class DocumentViewModel : ReactiveObject
             }));
     }
 
-    private async Task SaveAsync()
+    /// <summary>
+    /// 保存する。保存先が決まっていなければダイアログで尋ねる。
+    /// 取り消された場合は <see cref="IsDirty"/> が下りないので、呼び出し側から判別できる。
+    /// </summary>
+    public async Task SaveAsync()
     {
         if (CurrentFilePath is null)
         {
@@ -576,11 +583,13 @@ public sealed class DocumentViewModel : ReactiveObject
         IsDirty = false;
     }
 
-    /// <summary>ルートノードのタイトルをファイル名の初期値にする。使えない文字は除去する。</summary>
-    private string SuggestFileName()
+    /// <summary>
+    /// ノードのタイトルをファイル名の初期値にする。使えない文字は除去する。
+    /// <paramref name="title"/> を省くとルートノードのタイトルを使う。
+    /// </summary>
+    private string SuggestFileName(string? title = null)
     {
-        var root = Nodes.FirstOrDefault(n => n.Parent is null);
-        var baseName = root?.Title.Trim();
+        var baseName = (title ?? Nodes.FirstOrDefault(n => n.Parent is null)?.Title)?.Trim();
         if (string.IsNullOrEmpty(baseName))
         {
             baseName = _untitledName;
@@ -592,6 +601,152 @@ public sealed class DocumentViewModel : ReactiveObject
         }
 
         return baseName + MindMapFileService.FileExtension;
+    }
+
+    // ------------------------------------------------------------ 別ファイルへの切り出し
+
+    /// <summary>
+    /// ノードの子孫を別のファイルへ切り出す。ノード自身のコピーが新しいファイルのルートになり、
+    /// 子ノードはその下にそのままぶら下がる。元のノードには新しいファイルへのリンクを、
+    /// 新しいファイルのルートには元のファイルへのリンクを張って、行き来できるようにする。
+    /// 切り出した子ノードは元のファイルから消す（リンクと削除はまとめて 1 回で元に戻せる）。
+    /// </summary>
+    public async Task ExtractChildrenToFileAsync(NodeViewModel node)
+    {
+        // CollectSubtree は自分自身から始まるので、2 つ目以降が子孫にあたる。
+        var children = CollectSubtree(node).Skip(1).ToList();
+        if (children.Count == 0)
+        {
+            return;
+        }
+
+        // 互いへのリンクは元のファイルの場所を基準に書くので、保存先が決まっていないと張れない。
+        if (CurrentFilePath is not { } sourcePath)
+        {
+            await _showError.Handle("切り出したファイルとリンクし合うため、先にこのマップを保存してください。");
+            return;
+        }
+
+        var path = await _showSaveFileDialog.Handle(SuggestFileName(node.Title));
+        if (string.IsNullOrEmpty(path))
+        {
+            return;
+        }
+
+        // 元のファイルを選ばれると、これから消す子ノードごと上書きしてしまう。
+        if (string.Equals(Path.GetFullPath(path), Path.GetFullPath(sourcePath), StringComparison.OrdinalIgnoreCase))
+        {
+            await _showError.Handle("元のファイルには切り出せません。別のファイルを指定してください。");
+            return;
+        }
+
+        try
+        {
+            MindMapFileService.Save(path, BuildExtractedDocument(node, children, LinkPath(path, sourcePath)));
+        }
+        catch (Exception ex)
+        {
+            // 書き出せていない以上、元のファイルには手を付けずに終わる。
+            await _showError.Handle($"切り出したファイルを保存できませんでした。\n\n{path}\n\n{ex.Message}");
+            return;
+        }
+
+        var oldLink = node.Link;
+        var newLink = LinkPath(sourcePath, path);
+
+        Extract();
+
+        _history.Push(new DelegateUndoableAction(
+            undo: () =>
+            {
+                node.Link = oldLink;
+
+                // CollectSubtree の順（親→子）のまま戻す。親が先にいないと接続線を張れない。
+                foreach (var child in children)
+                {
+                    AddNode(child);
+                }
+
+                SelectedNode = node;
+                IsDirty = true;
+            },
+            redo: Extract));
+
+        void Extract()
+        {
+            node.Link = newLink;
+
+            // 消す子ノードを選んだままにしないよう、先に元のノードだけの選択にしておく。
+            SelectedNode = node;
+
+            foreach (var child in children)
+            {
+                RemoveNode(child);
+            }
+
+            IsDirty = true;
+        }
+    }
+
+    /// <summary>
+    /// 切り出したノードを、新しいファイルの中身として組み立てる。
+    /// <paramref name="node"/> のコピーをルートにし、その下に子ノードをぶら下げ直す。
+    /// 子ノードは Id も制作日・更新日もそのまま引き継ぐ（元のファイルからは消えるため）。
+    /// </summary>
+    /// <param name="backLink">新しいファイルのルートに張る、元のファイルへのリンク。</param>
+    private MindMapDocument BuildExtractedDocument(
+        NodeViewModel node,
+        IReadOnlyList<NodeViewModel> children,
+        string backLink)
+    {
+        // ルートは元のノードとは別のノード（元のノードは元のファイルに残る）なので Id は振り直す。
+        var rootId = Guid.NewGuid();
+
+        var root = ToDto(node, null);
+        root.Id = rootId;
+        root.Link = backLink;
+
+        var nodes = new List<MindMapNodeDto> { root };
+        nodes.AddRange(children.Select(child =>
+            ToDto(child, ReferenceEquals(child.Parent, node) ? rootId : child.Parent!.Id)));
+
+        // 元の座標のままだと、キャンバスの隅にあった部分木は開いた直後の表示に入らない。
+        // 位置関係は崩さず、かたまりごと左上へ寄せる。
+        var offsetX = ExtractedMargin - nodes.Min(n => n.X);
+        var offsetY = ExtractedMargin - nodes.Min(n => n.Y);
+
+        foreach (var dto in nodes)
+        {
+            dto.X += offsetX;
+            dto.Y += offsetY;
+        }
+
+        return new MindMapDocument
+        {
+            Version = MindMapDocument.CurrentVersion,
+            Nodes = nodes,
+        };
+    }
+
+    /// <summary>
+    /// <paramref name="fromFile"/> に書く、<paramref name="toFile"/> へのリンク。
+    /// 相対パスにしておくと、2 つのファイルを一緒に別の場所へ移してもリンクが切れない
+    /// （ドライブが違うなど相対で表せないときは絶対パスになる）。
+    /// </summary>
+    private static string LinkPath(string fromFile, string toFile)
+    {
+        try
+        {
+            var directory = Path.GetDirectoryName(Path.GetFullPath(fromFile));
+            return string.IsNullOrEmpty(directory)
+                ? toFile
+                : Path.GetRelativePath(directory, Path.GetFullPath(toFile));
+        }
+        catch (ArgumentException)
+        {
+            // パスとして解釈できないときは、書かれたとおりのパスをそのまま使う。
+            return toFile;
+        }
     }
 
     private void AddChild()
@@ -963,9 +1118,10 @@ public sealed class DocumentViewModel : ReactiveObject
     {
         Nodes.Add(node);
 
-        if (node.Parent is not null)
+        if (node.Parent is { } parent)
         {
-            Connections.Add(new ConnectionViewModel(node.Parent, node));
+            Connections.Add(new ConnectionViewModel(parent, node));
+            parent.HasChildren = true;
         }
 
         _nodeSubscriptions[node.Id] = new CompositeDisposable(
@@ -1065,6 +1221,12 @@ public sealed class DocumentViewModel : ReactiveObject
         }
 
         Nodes.Remove(node);
+
+        // 最後の子が消えたら、親は「子なし」に戻る。
+        if (node.Parent is { } parent)
+        {
+            parent.HasChildren = Nodes.Any(n => ReferenceEquals(n.Parent, parent));
+        }
     }
 
     private void Clear()

@@ -16,10 +16,13 @@ MVVM フレームワークに [ReactiveUI](https://www.reactiveui.net/) を使�
   - ファイルは関連付けられたアプリで開く（関連付けが無ければ「プログラムから開く」を表示）
   - リンク先が `.mindmap` ファイルなら、新しいタブで開く
   - 設定は右クリックメニュー・ファイル選択・ブラウザー/エクスプローラーからのドラッグに対応
+- **子ノードの切り出し** — ノードを右クリック →「子ノードを別のファイルに保存」で、その部分木を別の
+  `.mindmap` ファイルへ。ノードのコピーが切り出し先のルートになり、元のノードとの間に相互リンクが張られる。
+  元のファイルからは子ノードが消える（Undo で戻せる）
 - **複数ドキュメント** — タブで複数のマップを同時に開ける
 - **Undo / Redo** — 追加・削除・編集・移動・リンク設定をまとめて元に戻せる
 - **表示** — ズーム（Ctrl+ホイール）、パン（中ボタンドラッグ）、ノードの自動サイズ調整
-- **ファイル入出力** — 新規・開く・保存・名前を付けて保存。未保存のまま閉じると確認
+- **ファイル入出力** — 新規・開く・保存・名前を付けて保存・すべて保存（開いているタブの未保存ぶんをまとめて）。未保存のまま閉じると確認
 - **ファイルの関連付け** — `.mindmap` を MindMap で開けるようインストーラーが登録。既定のアプリに設定すれば、ダブルクリックでそのまま開く
 
 ## キーボード操作
@@ -29,6 +32,7 @@ MVVM フレームワークに [ReactiveUI](https://www.reactiveui.net/) を使�
 | `Ctrl+N` | 新しいタブ |
 | `Ctrl+O` | ファイルを開く |
 | `Ctrl+S` / `Ctrl+Shift+S` | 保存 / 名前を付けて保存 |
+| `Ctrl+Alt+S` | 開いているタブをすべて保存 |
 | `Ctrl+W` | タブを閉じる |
 | `Ctrl+Z` / `Ctrl+Y` | 元に戻す / やり直し |
 | `Ctrl+X` / `Ctrl+C` / `Ctrl+V` | 切り取り / コピー / 貼り付け |
@@ -71,7 +75,7 @@ dotnet publish src/MindMap/MindMap.csproj -c Release -r win-x64 --self-contained
 ISCC.exe installer/MindMap.iss
 ```
 
-`installer/Output/MindMap-1.2.0-Setup.exe` が生成されます。管理者権限なしでユーザー領域に
+`installer/Output/MindMap-1.3.0-Setup.exe` が生成されます。管理者権限なしでユーザー領域に
 インストールでき、スタートメニュー登録とアンインストーラーが付きます。
 
 ### ファイルの関連付け
@@ -101,7 +105,7 @@ dotnet publish src/MindMap/MindMap.csproj -c Release -r win-x64 --self-contained
 powershell -ExecutionPolicy Bypass -File installer/package-zip.ps1
 ```
 
-`installer/Output/MindMap-1.2.0-win-x64.zip` が生成されます。展開してできる `MindMap`
+`installer/Output/MindMap-1.3.0-win-x64.zip` が生成されます。展開してできる `MindMap`
 フォルダー内の `MindMap.exe` を実行するだけで動きます。
 
 ビルド済みのインストーラーと ZIP は [Releases](../../releases) からダウンロードできます。

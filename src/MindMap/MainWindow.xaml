@@ -20,6 +20,7 @@
         <KeyBinding Key="W" Modifiers="Ctrl" Command="{Binding CloseActiveDocumentCommand}" />
         <KeyBinding Key="S" Modifiers="Ctrl" Command="{Binding ActiveDocument.SaveCommand}" />
         <KeyBinding Key="S" Modifiers="Ctrl+Shift" Command="{Binding ActiveDocument.SaveAsCommand}" />
+        <KeyBinding Key="S" Modifiers="Ctrl+Alt" Command="{Binding SaveAllCommand}" />
         <KeyBinding Key="Z" Modifiers="Ctrl" Command="{Binding ActiveDocument.UndoCommand}" />
         <KeyBinding Key="Y" Modifiers="Ctrl" Command="{Binding ActiveDocument.RedoCommand}" />
         <KeyBinding Key="Z" Modifiers="Ctrl+Shift" Command="{Binding ActiveDocument.RedoCommand}" />
@@ -62,6 +63,10 @@
                         Command="{Binding ActiveDocument.SaveAsCommand}"
                         Tag="{StaticResource Icon.SaveAs}"
                         Content="名前を付けて保存 (Ctrl+Shift+S)" />
+                <Button Style="{StaticResource ToolBarButton}"
+                        Command="{Binding SaveAllCommand}"
+                        Tag="{StaticResource Icon.SaveAll}"
+                        Content="すべて保存 (Ctrl+Alt+S)" />
                 <Separator />
                 <Button Style="{StaticResource ToolBarButton}"
                         Command="{Binding ActiveDocument.UndoCommand}"
@@ -263,6 +268,11 @@
                                                               InputGestureText="Ctrl+V"
                                                               Command="{Binding PlacementTarget.Tag.ActiveDocument.PasteCommand,
                                                                                 RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                                    <Separator />
+                                                    <!-- 子ノードを別ファイルへ切り出す。子がいなければ切り出すものが無い。 -->
+                                                    <MenuItem Header="子ノードを別のファイルに保存..."
+                                                              IsEnabled="{Binding HasChildren}"
+                                                              Click="ContextExtractChildren_Click" />
                                                     <Separator />
                                                     <MenuItem Header="リンクを開く"
                                                               IsEnabled="{Binding HasLink}"

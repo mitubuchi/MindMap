@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.IO;
 using System.Reactive;
 using System.Reactive.Linq;
@@ -24,9 +25,27 @@ public sealed class MainWindowViewModel : ReactiveObject
     {
         var hasActiveDocument = this.WhenAnyValue(x => x.ActiveDocument).Select(d => d is not null);
 
+        // 未保存のタブが 1 つでもあるときだけ「すべて保存」を押せるようにする。
+        // タブは増減するので、開いているタブが変わるたびに監視対象を組み替える。
+        var documentsChanged = Observable
+            .FromEventPattern<NotifyCollectionChangedEventHandler, NotifyCollectionChangedEventArgs>(
+                h => Documents.CollectionChanged += h,
+                h => Documents.CollectionChanged -= h)
+            .Select(_ => Unit.Default)
+            .StartWith(Unit.Default);
+
+        var hasDirtyDocument = documentsChanged
+            .Select(_ => Documents.Count == 0
+                ? Observable.Return(false)
+                : Documents
+                    .Select(d => d.WhenAnyValue(x => x.IsDirty))
+                    .CombineLatest(flags => flags.Any(dirty => dirty)))
+            .Switch();
+
         NewDocumentCommand = ReactiveCommand.Create(() => AddDocument(CreateDocument()));
         OpenDocumentCommand = ReactiveCommand.CreateFromTask(OpenAsync);
         OpenLinkCommand = ReactiveCommand.CreateFromTask<NodeViewModel>(OpenLinkAsync);
+        SaveAllCommand = ReactiveCommand.CreateFromTask(SaveAllAsync, hasDirtyDocument);
         CloseDocumentCommand = ReactiveCommand.CreateFromTask<DocumentViewModel>(CloseDocumentAsync);
         CloseActiveDocumentCommand = ReactiveCommand.CreateFromTask(
             () => CloseDocumentAsync(ActiveDocument!),
@@ -37,6 +56,7 @@ public sealed class MainWindowViewModel : ReactiveObject
                 NewDocumentCommand.ThrownExceptions,
                 OpenDocumentCommand.ThrownExceptions,
                 OpenLinkCommand.ThrownExceptions,
+                SaveAllCommand.ThrownExceptions,
                 CloseDocumentCommand.ThrownExceptions,
                 CloseActiveDocumentCommand.ThrownExceptions)
             .SelectMany(ex => ShowError.Handle(ex.Message))
@@ -69,6 +89,9 @@ public sealed class MainWindowViewModel : ReactiveObject
 
     /// <summary>ノードのリンクを開く。マインドマップなら新しいタブ、それ以外は外部アプリ。</summary>
     public ReactiveCommand<NodeViewModel, Unit> OpenLinkCommand { get; }
+
+    /// <summary>開いているタブのうち、未保存のものをまとめて保存する。</summary>
+    public ReactiveCommand<Unit, Unit> SaveAllCommand { get; }
 
     public ReactiveCommand<Unit, Unit> CloseActiveDocumentCommand { get; }
 
@@ -177,6 +200,45 @@ public sealed class MainWindowViewModel : ReactiveObject
         var document = CreateDocument();
         document.Load(path);
         AddDocument(document);
+    }
+
+    /// <summary>
+    /// 未保存のタブを順に保存する。保存先の無いタブはダイアログで尋ねることになるので、
+    /// どのタブについて聞かれているのか分かるよう、先にそのタブを見せる。
+    /// 取り消されたタブは未保存のまま残し、残りのタブは続けて保存する。
+    /// </summary>
+    private async Task SaveAllAsync()
+    {
+        var active = ActiveDocument;
+
+        foreach (var document in Documents.ToList())
+        {
+            if (!document.IsDirty)
+            {
+                continue;
+            }
+
+            if (document.CurrentFilePath is null)
+            {
+                ActiveDocument = document;
+            }
+
+            try
+            {
+                await document.SaveAsync();
+            }
+            catch (Exception ex)
+            {
+                // 1 つ保存できなくても、残りのタブは保存できるように続ける。
+                await ShowError.Handle($"保存できませんでした。\n\n{document.DisplayName}\n\n{ex.Message}");
+            }
+        }
+
+        // 保存のために切り替えた場合は、元に見ていたタブに戻す。
+        if (active is not null && Documents.Contains(active))
+        {
+            ActiveDocument = active;
+        }
     }
 
     private async Task OpenLinkAsync(NodeViewModel node)
