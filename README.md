@@ -16,6 +16,9 @@ MVVM フレームワークに [ReactiveUI](https://www.reactiveui.net/) を使�
   - ファイルは関連付けられたアプリで開く（関連付けが無ければ「プログラムから開く」を表示）
   - リンク先が `.mindmap` ファイルなら、新しいタブで開く
   - 設定は右クリックメニュー・ファイル選択・ブラウザー/エクスプローラーからのドラッグに対応
+  - タイトル脇のアイコンは、リンク先の種類に合わせて変わる。ファイルは関連付けられたアプリの
+    アイコン、マインドマップ・フォルダー・メールはそれぞれの線画アイコン、Web はリンク記号
+    （種類が分からないものは疑問符）
 - **子ノードの切り出し** — ノードを右クリック →「子ノードを別のファイルに保存」で、その部分木を別の
   `.mindmap` ファイルへ。ノードのコピーが切り出し先のルートになり、元のノードとの間に相互リンクが張られる。
   元のファイルからは子ノードが消える（Undo で戻せる）
@@ -75,7 +78,7 @@ dotnet publish src/MindMap/MindMap.csproj -c Release -r win-x64 --self-contained
 ISCC.exe installer/MindMap.iss
 ```
 
-`installer/Output/MindMap-1.3.0-Setup.exe` が生成されます。管理者権限なしでユーザー領域に
+`installer/Output/MindMap-1.3.1-Setup.exe` が生成されます。管理者権限なしでユーザー領域に
 インストールでき、スタートメニュー登録とアンインストーラーが付きます。
 
 ### ファイルの関連付け
@@ -105,7 +108,7 @@ dotnet publish src/MindMap/MindMap.csproj -c Release -r win-x64 --self-contained
 powershell -ExecutionPolicy Bypass -File installer/package-zip.ps1
 ```
 
-`installer/Output/MindMap-1.3.0-win-x64.zip` が生成されます。展開してできる `MindMap`
+`installer/Output/MindMap-1.3.1-win-x64.zip` が生成されます。展開してできる `MindMap`
 フォルダー内の `MindMap.exe` を実行するだけで動きます。
 
 ビルド済みのインストーラーと ZIP は [Releases](../../releases) からダウンロードできます。
