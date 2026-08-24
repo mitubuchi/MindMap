@@ -35,6 +35,7 @@ try {
     # 同梱している第三者ソフトウェアの表示。SharpVectors が BSD-3-Clause なので
     # バイナリで再配布する側に表示義務がある。
     Copy-Item -Path (Join-Path $root "THIRD-PARTY-NOTICES.txt") -Destination $stageApp -Force
+    Copy-Item -Path (Join-Path $root "LICENSE") -Destination $stageApp -Force
 
     if (Test-Path $zipPath) {
         Remove-Item $zipPath -Force

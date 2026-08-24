@@ -50,6 +50,7 @@ Source: "{#RepoRoot}\publish\win-x64\*"; DestDir: "{app}"; Flags: ignoreversion 
 ; 同梱している第三者ソフトウェアの表示。SharpVectors が BSD-3-Clause なので
 ; バイナリで再配布する側に表示義務がある。
 Source: "{#RepoRoot}\THIRD-PARTY-NOTICES.txt"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#RepoRoot}\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
