@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace MindMap.Models;
@@ -12,13 +13,28 @@ public sealed class MindMapDocument
     /// ファイル形式のバージョン。
     /// 1 = タイトルのみ（Text 欄）／2 = タイトルと内容に分離（Title / Body 欄）／
     /// 3 = リンク（Link 欄）を追加／4 = 小さく表示するか（Collapsed 欄）を追加／
-    /// 5 = 制作日・更新日（CreatedAt / UpdatedAt 欄）を追加。
+    /// 5 = 制作日・更新日（CreatedAt / UpdatedAt 欄）を追加／
+    /// 7 = 知らない欄をそのまま持ち越す（<see cref="Extra"/>）。
+    ///
+    /// 6 は DeviceMap が DeviceKey 欄のために使っているので飛ばしてある。
+    /// 同じ番号が 2 つの意味を持つと、ファイルを見ただけでどちらか分からなくなるため。
+    ///
+    /// なお、読み込みはこの番号で分岐していない。欠けている欄は既定値、知らない欄は
+    /// <see cref="Extra"/> に入るので、どの版のファイルもそのまま読める。
+    /// 番号は「何を足したか」の記録として持つ。
     /// </summary>
     public int Version { get; set; } = CurrentVersion;
 
-    public const int CurrentVersion = 5;
+    public const int CurrentVersion = 7;
 
     public List<MindMapNodeDto> Nodes { get; set; } = new();
+
+    /// <summary>
+    /// このアプリが知らない、ファイル全体に付いていた欄。読んだままの形で持っておき、
+    /// 保存時にそのまま書き戻す（<see cref="MindMapNodeDto.Extra"/> と同じ考え方）。
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Extra { get; set; }
 }
 
 public sealed class MindMapNodeDto
@@ -61,4 +77,15 @@ public sealed class MindMapNodeDto
     public double X { get; set; }
 
     public double Y { get; set; }
+
+    /// <summary>
+    /// このアプリが知らない欄。読んだままの形で持っておき、保存時にそのまま書き戻す。
+    ///
+    /// 新しい版や、あとから足したパッケージが書いた欄を、それを知らない版で開いて
+    /// 保存しただけで失わないため。中身は解釈しない（知らないものは知らないまま運ぶ）。
+    /// 新しく欄を足す側は、他と衝突しないよう "Extensions": { "&lt;パッケージ ID&gt;": { ... } }
+    /// のように名前空間を切ること。
+    /// </summary>
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement>? Extra { get; set; }
 }

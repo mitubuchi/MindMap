@@ -7,6 +7,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{827E0CD3-B72
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MindMap", "src\MindMap\MindMap.csproj", "{F93273EF-B4A3-4DB6-8C4B-5F2091E4E66C}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MindMap.Abstractions", "src\MindMap.Abstractions\MindMap.Abstractions.csproj", "{636C0D8D-D5C2-460B-A5F5-CB96FD09F4AA}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -29,11 +31,24 @@ Global
 		{F93273EF-B4A3-4DB6-8C4B-5F2091E4E66C}.Release|x64.Build.0 = Release|Any CPU
 		{F93273EF-B4A3-4DB6-8C4B-5F2091E4E66C}.Release|x86.ActiveCfg = Release|Any CPU
 		{F93273EF-B4A3-4DB6-8C4B-5F2091E4E66C}.Release|x86.Build.0 = Release|Any CPU
+		{636C0D8D-D5C2-460B-A5F5-CB96FD09F4AA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{636C0D8D-D5C2-460B-A5F5-CB96FD09F4AA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{636C0D8D-D5C2-460B-A5F5-CB96FD09F4AA}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{636C0D8D-D5C2-460B-A5F5-CB96FD09F4AA}.Debug|x64.Build.0 = Debug|Any CPU
+		{636C0D8D-D5C2-460B-A5F5-CB96FD09F4AA}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{636C0D8D-D5C2-460B-A5F5-CB96FD09F4AA}.Debug|x86.Build.0 = Debug|Any CPU
+		{636C0D8D-D5C2-460B-A5F5-CB96FD09F4AA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{636C0D8D-D5C2-460B-A5F5-CB96FD09F4AA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{636C0D8D-D5C2-460B-A5F5-CB96FD09F4AA}.Release|x64.ActiveCfg = Release|Any CPU
+		{636C0D8D-D5C2-460B-A5F5-CB96FD09F4AA}.Release|x64.Build.0 = Release|Any CPU
+		{636C0D8D-D5C2-460B-A5F5-CB96FD09F4AA}.Release|x86.ActiveCfg = Release|Any CPU
+		{636C0D8D-D5C2-460B-A5F5-CB96FD09F4AA}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{F93273EF-B4A3-4DB6-8C4B-5F2091E4E66C} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{636C0D8D-D5C2-460B-A5F5-CB96FD09F4AA} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 	EndGlobalSection
 EndGlobal

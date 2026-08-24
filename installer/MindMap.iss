@@ -1,10 +1,10 @@
-; Inno Setup スクリプト — MindMap の Windows インストーラー
+﻿; Inno Setup スクリプト — MindMap の Windows インストーラー
 ; 使い方: publish/win-x64 に自己完結ビルドを出力してから
 ;   "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\MindMap.iss
 ; を実行すると installer\Output に Setup.exe が作られる。
 
 #define MyAppName "MindMap"
-#define MyAppVersion "1.4.0"
+#define MyAppVersion "1.5.0"
 #define MyAppPublisher "MindMap"
 #define MyAppExeName "MindMap.exe"
 ; 拡張子と、その種類を表す内部名（ProgID）。
@@ -47,6 +47,9 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 [Files]
 ; 自己完結ビルドの中身をまるごと入れる。
 Source: "{#RepoRoot}\publish\win-x64\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; 同梱している第三者ソフトウェアの表示。SharpVectors が BSD-3-Clause なので
+; バイナリで再配布する側に表示義務がある。
+Source: "{#RepoRoot}\THIRD-PARTY-NOTICES.txt"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

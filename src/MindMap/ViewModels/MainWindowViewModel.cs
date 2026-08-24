@@ -4,6 +4,7 @@ using System.IO;
 using System.Reactive;
 using System.Reactive.Linq;
 using MindMap.Services;
+using MindMap.Services.Viewers;
 using ReactiveUI;
 
 namespace MindMap.ViewModels;
@@ -21,8 +22,10 @@ public sealed class MainWindowViewModel : ReactiveObject
 
     private DocumentViewModel? _activeDocument;
 
-    public MainWindowViewModel()
+    public MainWindowViewModel(ViewerRegistry viewers)
     {
+        Viewer = new ViewerViewModel(viewers);
+
         var hasActiveDocument = this.WhenAnyValue(x => x.ActiveDocument).Select(d => d is not null);
 
         // 未保存のタブが 1 つでもあるときだけ「すべて保存」を押せるようにする。
@@ -93,7 +96,7 @@ public sealed class MainWindowViewModel : ReactiveObject
     public string Title => _title.Value;
 
     /// <summary>画面右のビューア。選択中のノードの本文やリンク先を見せる。</summary>
-    public ViewerViewModel Viewer { get; } = new();
+    public ViewerViewModel Viewer { get; }
 
     public ReactiveCommand<Unit, Unit> NewDocumentCommand { get; }
 

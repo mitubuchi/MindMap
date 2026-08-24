@@ -1,6 +1,8 @@
 using System.IO;
 using System.Reactive;
 using System.Reactive.Linq;
+using System.Windows;
+using MindMap.Abstractions.Viewers;
 using MindMap.Services;
 using MindMap.Services.Viewers;
 using ReactiveUI;
@@ -9,8 +11,10 @@ namespace MindMap.ViewModels;
 
 /// <summary>
 /// 画面右のビューア。選択中のノードの本文を編集するか、リンク先の中身を見せる。
-/// 「何を出すか」をここに、「どう描くか」を View と <see cref="ViewerRegistry"/> に置いて
-/// 分けてあるのは、後から種類ごとの描画を差し替えられるようにするため。
+///
+/// 「何を出すか」がここ、「どう描くか」は <see cref="ViewerSession"/> が選んだビューアの側。
+/// リンク先の描画はパッケージで差し替わるので、ここは出来上がった画面を枠に載せるだけで、
+/// 中身が Markdown なのか画像なのかを知らない。
 /// </summary>
 public sealed class ViewerViewModel : ReactiveObject
 {
@@ -34,7 +38,7 @@ public sealed class ViewerViewModel : ReactiveObject
     private const string NoTargetMessage = "ノードを選ぶと、ここに内容が出ます。";
     private const string NoLinkLabel = "リンク";
 
-    private readonly ViewerRegistry _viewers = new();
+    private readonly ViewerSession _session;
 
     /// <summary>Undo のまとまりを作るための、編集中のタブとノード。編集していなければ null。</summary>
     private (DocumentViewModel Document, NodeViewModel Node)? _editing;
@@ -51,11 +55,13 @@ public sealed class ViewerViewModel : ReactiveObject
     private string _tabLabel = NoLinkLabel;
     private string _body = string.Empty;
     private string _link = string.Empty;
-    private string _linkContent = string.Empty;
+    private FrameworkElement? _linkView;
     private string? _message = NoTargetMessage;
 
-    public ViewerViewModel()
+    public ViewerViewModel(ViewerRegistry viewers)
     {
+        _session = new ViewerSession(viewers);
+
         ToggleCommand = ReactiveCommand.Create(() => { IsVisible = !IsVisible; });
 
         // 対象のノードだけでなく、その内容の変化も追う。キャンバス側で書き換えても
@@ -87,8 +93,8 @@ public sealed class ViewerViewModel : ReactiveObject
             .Where(r => r.Kind == ViewerSource.Link)
             .Throttle(SettleDelay, RxSchedulers.MainThreadScheduler)
             .Select(r => ResolveTarget(r.Link).Path is { } path
-                ? Observable.FromAsync(ct => LoadAsync(path, ct))
-                : Observable.Empty<TextDocument>())
+                ? Observable.FromAsync(ct => _session.ShowAsync(new ViewerContent(path), ct))
+                : Observable.Empty<FrameworkElement>())
             .Switch()
             .ObserveOn(RxSchedulers.MainThreadScheduler)
             .Subscribe(ApplyLoaded);
@@ -141,8 +147,14 @@ public sealed class ViewerViewModel : ReactiveObject
     public string Caption
     {
         get => _caption;
-        private set => this.RaiseAndSetIfChanged(ref _caption, value);
+        private set
+        {
+            this.RaiseAndSetIfChanged(ref _caption, value);
+            this.RaisePropertyChanged(nameof(HasCaption));
+        }
     }
+
+    public bool HasCaption => !string.IsNullOrEmpty(_caption);
 
     /// <summary>リンクタブの見出し。何を指しているか分かるようファイル名を出す。</summary>
     public string TabLabel
@@ -181,11 +193,15 @@ public sealed class ViewerViewModel : ReactiveObject
         private set => this.RaiseAndSetIfChanged(ref _link, value);
     }
 
-    /// <summary>リンク先の中身。ビューアが組み立てたもので、ここからは変えられない。</summary>
-    public string LinkContent
+    /// <summary>
+    /// リンク先を描いている画面。種類ごとのビューアが作ったものをそのまま載せる。
+    /// ViewModel が画面の型を持つのは行儀が良くないが、差し替えの単位が
+    /// 「描画そのもの」である以上、ここを文字列に落とすと差し替えられなくなる。
+    /// </summary>
+    public FrameworkElement? LinkView
     {
-        get => _linkContent;
-        private set => this.RaiseAndSetIfChanged(ref _linkContent, value);
+        get => _linkView;
+        private set => this.RaiseAndSetIfChanged(ref _linkView, value);
     }
 
     /// <summary>中身の代わりに出す案内。出すものがあるときは null。</summary>
@@ -204,14 +220,17 @@ public sealed class ViewerViewModel : ReactiveObject
     /// <summary>本文の入力欄を出すか。</summary>
     public bool ShowsEditor => _message is null && _sourceKind == ViewerSource.Body;
 
-    /// <summary>リンク先の中身を出すか。</summary>
+    /// <summary>リンク先の画面を出すか。</summary>
     public bool ShowsLink => _message is null && _sourceKind == ViewerSource.Link;
 
     /// <summary>
-    /// 「リンク先を開く」を添えるか。ビューアで出せなかったときだけ出す。
-    /// 中身が出せているなら、わざわざ外のアプリに渡す理由がないため。
+    /// 「リンク先を開く」を出すか。開ける先があるときは常に出す。
+    ///
+    /// ビューアで出せなかったときだけに絞っていたが、失敗の理由はビューア自身が
+    /// 自分の枠の中に出すようになったので、ホスト側からは成否が見えない。
+    /// 出せているときに押せても害は無いので、開ける先があるかどうかだけで決める。
     /// </summary>
-    public bool ShowsOpenLink => _message is not null && _canOpenLink && _sourceKind == ViewerSource.Link;
+    public bool ShowsOpenLink => _canOpenLink && _sourceKind == ViewerSource.Link;
 
     public ReactiveCommand<Unit, Unit> ToggleCommand { get; }
 
@@ -266,7 +285,7 @@ public sealed class ViewerViewModel : ReactiveObject
             Caption = string.Empty;
             Body = string.Empty;
             Link = string.Empty;
-            LinkContent = string.Empty;
+            LinkView = null;
             Message = NoTargetMessage;
             _canOpenLink = false;
         }
@@ -287,9 +306,9 @@ public sealed class ViewerViewModel : ReactiveObject
             Caption = resolution.Path ?? Link;
             Body = body;
 
-            // 前のファイルの中身が残らないよう、読み直す前に空にする。
-            // 読める場合の中身は、少し遅れて ApplyLoaded から入る。
-            LinkContent = string.Empty;
+            // 前のファイルの画面が残らないよう、読み直す前に外す。
+            // 読める場合の画面は、少し遅れて ApplyLoaded から入る。
+            LinkView = null;
             Message = resolution.Message;
             _canOpenLink = resolution.CanOpen;
         }
@@ -297,39 +316,17 @@ public sealed class ViewerViewModel : ReactiveObject
         RaiseVisibilityFlags();
     }
 
-    private void ApplyLoaded(TextDocument document)
+    private void ApplyLoaded(FrameworkElement view)
     {
-        // 読んでいる間に本文へ切り替えられていたら、出す先が無いので捨てる。
+        // 読んでいる間に本文へ切り替えられていたら、載せる先が無いので捨てる。
         if (SourceKind != ViewerSource.Link)
         {
             return;
         }
 
-        LinkContent = document.Text ?? string.Empty;
-
-        // 中身は取れなかったが場所はある、という場合（バイナリ・大きすぎるなど）。
-        // 外のアプリになら渡せるので、_canOpenLink はここでは触らない。
-        Message = document.Message;
+        LinkView = view;
+        Message = null;
         RaiseVisibilityFlags();
-    }
-
-    private async Task<TextDocument> LoadAsync(string path, CancellationToken cancellationToken)
-    {
-        var content = new ViewerContent(path);
-
-        try
-        {
-            return await _viewers.Resolve(content).LoadAsync(content, cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            // ビューアの失敗でアプリを止めない。読めなかったことだけをその場に出す。
-            return TextDocument.Unavailable($"読み込めませんでした。\n\n{ex.Message}");
-        }
     }
 
     private void RaiseVisibilityFlags()
@@ -341,7 +338,7 @@ public sealed class ViewerViewModel : ReactiveObject
 
     /// <summary>
     /// リンクが読める場所を指しているかを調べる。読めるならその絶対パス、
-    /// 読めないなら理由を返す（ファイルを開く前に分かるものはここで片付ける）。
+    /// 読めないなら理由を返す（ビューアを呼ぶ前に分かるものはここで片付ける）。
     /// </summary>
     private LinkResolution ResolveTarget(string link)
     {
@@ -425,9 +422,8 @@ public sealed class ViewerViewModel : ReactiveObject
         }
 
         var trimmed = link.Trim();
-        var isUri = Uri.TryCreate(trimmed, UriKind.Absolute, out var uri);
 
-        if (isUri && !uri!.IsFile)
+        if (Uri.TryCreate(trimmed, UriKind.Absolute, out var uri) && !uri.IsFile)
         {
             return uri.Scheme is "http" or "https" ? Shorten(uri.Host) : NoLinkLabel;
         }

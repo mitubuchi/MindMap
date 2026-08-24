@@ -7,7 +7,7 @@
 #   dotnet publish src/MindMap/MindMap.csproj -c Release -r win-x64 --self-contained true -o publish/win-x64
 
 param(
-    [string]$Version = "1.4.0"
+    [string]$Version = "1.5.0"
 )
 
 $ErrorActionPreference = "Stop"
@@ -31,6 +31,10 @@ New-Item -ItemType Directory -Force -Path $stageApp | Out-Null
 
 try {
     Copy-Item -Path (Join-Path $publish "*") -Destination $stageApp -Recurse -Force
+
+    # 同梱している第三者ソフトウェアの表示。SharpVectors が BSD-3-Clause なので
+    # バイナリで再配布する側に表示義務がある。
+    Copy-Item -Path (Join-Path $root "THIRD-PARTY-NOTICES.txt") -Destination $stageApp -Force
 
     if (Test-Path $zipPath) {
         Remove-Item $zipPath -Force

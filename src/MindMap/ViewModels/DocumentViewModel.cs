@@ -4,6 +4,7 @@ using System.IO;
 using System.Reactive;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
+using System.Text.Json;
 using MindMap.Models;
 using MindMap.Services;
 using MindMap.Undo;
@@ -54,6 +55,9 @@ public sealed class DocumentViewModel : ReactiveObject
     private bool _canUndo;
     private bool _canRedo;
     private double _zoom = 1.0;
+
+    /// <summary>読み込んだファイルにあった、ファイル全体に付く知らない欄。保存時に書き戻す。</summary>
+    private Dictionary<string, JsonElement>? _documentExtra;
 
     public DocumentViewModel(
         string untitledName,
@@ -1041,6 +1045,7 @@ public sealed class DocumentViewModel : ReactiveObject
             var node = new NodeViewModel(Guid.NewGuid(), dto.ResolveTitle(), dto.Body, dto.X, dto.Y, dto.Link)
             {
                 IsCollapsed = dto.Collapsed,
+                Extra = dto.Extra,
             };
 
             // 制作日・更新日は引き継ぐ。別のファイルへ移したときに、いつ書いたものかを失わないため。
@@ -1269,6 +1274,7 @@ public sealed class DocumentViewModel : ReactiveObject
         ClearSelection();
         _activeEdit = null;
         _externalEdit = null;
+        _documentExtra = null;
 
         foreach (var connection in Connections)
         {
@@ -1290,6 +1296,7 @@ public sealed class DocumentViewModel : ReactiveObject
     {
         Version = MindMapDocument.CurrentVersion,
         Nodes = Nodes.Select(n => ToDto(n, n.Parent?.Id)).ToList(),
+        Extra = _documentExtra,
     };
 
     private static MindMapNodeDto ToDto(NodeViewModel node, Guid? parentId) => new()
@@ -1304,11 +1311,16 @@ public sealed class DocumentViewModel : ReactiveObject
         UpdatedAt = node.UpdatedAt,
         X = node.X,
         Y = node.Y,
+
+        // 知らない欄はそのまま書き戻す。読んだときに捨てていないので、
+        // このアプリが知らないパッケージの情報もファイルに残る。
+        Extra = node.Extra,
     };
 
     private void LoadDocument(MindMapDocument document)
     {
         Clear();
+        _documentExtra = document.Extra;
 
         // 親子を結ぶ前に全ノードを実体化しておく（ファイル内の並び順に依存しないため）。
         var byId = new Dictionary<Guid, NodeViewModel>();
@@ -1319,6 +1331,7 @@ public sealed class DocumentViewModel : ReactiveObject
             var node = new NodeViewModel(dto.Id, dto.ResolveTitle(), dto.Body, dto.X, dto.Y, dto.Link)
             {
                 IsCollapsed = dto.Collapsed,
+                Extra = dto.Extra,
             };
 
             // 保存済みの日時があれば復元する。無い（Version 4 以前の）ファイルは

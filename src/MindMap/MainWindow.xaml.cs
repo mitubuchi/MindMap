@@ -9,6 +9,7 @@ using System.Windows.Shapes;
 using System.Windows.Threading;
 using Microsoft.Win32;
 using MindMap.Services;
+using MindMap.Services.Viewers;
 using MindMap.ViewModels;
 using ReactiveUI;
 
@@ -53,11 +54,11 @@ public partial class MainWindow : Window, IViewFor<MainWindowViewModel>
     /// <summary>未保存確認のために閉じるのを一度キャンセルするので、二周目を見分けるフラグ。</summary>
     private bool _closeConfirmed;
 
-    public MainWindow()
+    public MainWindow(ViewerRegistry viewers)
     {
         InitializeComponent();
 
-        ViewModel = new MainWindowViewModel();
+        ViewModel = new MainWindowViewModel(viewers);
         DataContext = ViewModel;
 
         RegisterInteractionHandlers();

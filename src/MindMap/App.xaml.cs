@@ -1,5 +1,7 @@
 using System.Text;
 using System.Windows;
+using MindMap.Services.Packages;
+using MindMap.Services.Viewers;
 using ReactiveUI.Builder;
 
 namespace MindMap;
@@ -22,7 +24,22 @@ public partial class App : Application
             .WithWpf()
             .Build();
 
-        var window = new MainWindow();
+        // 表示の種類を集めるところ。組み込みを入れてから、plugins のパッケージを足す。
+        var viewers = new ViewerRegistry();
+        var packages = PackageLoader.LoadAll(viewers);
+
+        // 壊れたパッケージは黙って無視せず 1 度だけ知らせる（入れたのに効かない状態が
+        // いちばん分かりにくいため）。読めたぶんはそのまま使える。
+        if (packages.Errors.Count > 0)
+        {
+            MessageBox.Show(
+                string.Join(Environment.NewLine, packages.Errors),
+                "パッケージを読み込めませんでした",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
+
+        var window = new MainWindow(viewers);
         MainWindow = window;
         window.Show();
 

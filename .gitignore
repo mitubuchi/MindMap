@@ -28,8 +28,10 @@ _ReSharper*/
 
 # NuGet
 *.nupkg
-packages/
-!**/packages/build/
+# 旧形式の NuGet がリポジトリ直下に作るフォルダーだけを対象にする。
+# 先頭の / が無いと、どの階層の Packages/ にも当たってしまう
+# （Windows では大小文字を区別しないので Services/Packages/ まで消えた）。
+/packages/
 
 # Publish / installer output
 publish/

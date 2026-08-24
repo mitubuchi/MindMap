@@ -1,6 +1,7 @@
 using System.IO;
 using System.Text;
 using System.Text.Json;
+using MindMap.Abstractions.Viewers;
 using MindMap.Models;
 
 namespace MindMap.Services.Viewers;
@@ -10,18 +11,27 @@ namespace MindMap.Services.Viewers;
 /// 図として描くにはビューアの幅が足りないので、タイトルを字下げで並べ、
 /// どんな構造のマップなのかだけが分かるようにする。
 /// </summary>
-public sealed class MindMapOutlineViewer : IContentViewer
+public sealed class MindMapOutlineViewerFactory : IContentViewerFactory
 {
-    /// <summary>字下げ 1 段ぶんの空白。</summary>
-    private const string Indent = "  ";
+    public string Id => "builtin.mindmap-outline";
 
     public int Priority => 100;
 
     public bool CanView(ViewerContent content) =>
         string.Equals(content.Extension, MindMapFileService.FileExtension, StringComparison.OrdinalIgnoreCase);
 
+    public IContentViewer Create() => new MindMapOutlineViewer();
+}
+
+internal sealed class MindMapOutlineViewer : TextContentViewer
+{
+    /// <summary>字下げ 1 段ぶんの空白。</summary>
+    private const string Indent = "  ";
+
     // ファイルの読み込みと組み立てで画面を止めないよう、別のスレッドに逃がす。
-    public Task<TextDocument> LoadAsync(ViewerContent content, CancellationToken cancellationToken) =>
+    protected override Task<TextDocument> BuildAsync(
+        ViewerContent content,
+        CancellationToken cancellationToken) =>
         Task.Run(() => Build(content.FilePath), cancellationToken);
 
     private static TextDocument Build(string path)

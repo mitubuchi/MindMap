@@ -25,10 +25,11 @@ MVVM フレームワークに [ReactiveUI](https://www.reactiveui.net/) を使�
 - **ビューア** — 画面右に開閉できる作業ペイン（`F7`）。選択中のノードに追従する
   - **本文** — その場で書き換えられる。入ってから抜けるまでが 1 回ぶんの Undo になる
   - **リンク** — タブの見出しがリンク先のファイル名になり、その下にフルパスが出る
+  - **Markdown / SVG / 画像・動画**は、同梱の MdViewer パッケージが整形して表示
   - リンク先が `.mindmap` なら、ノードの親子関係をタイトルの字下げリストで表示
   - テキストとして読めるファイルはそのまま表示（文字コードは BOM・UTF-8・既定コードページの順に判定）
-  - Web・フォルダー・バイナリなど出せないものは理由を出し、「リンク先を開く」で関連付けられたアプリに渡す
-  - 種類ごとの表示は差し替えられる作りにしてあり、対応するものが無ければテキスト表示になる
+  - 表示できないものは理由を出し、パスの隣のアイコンから関連付けられたアプリに渡せる
+  - **種類ごとの表示はパッケージで足せます**（[パッケージ](#パッケージ)）
 - **複数ドキュメント** — タブで複数のマップを同時に開ける
 - **Undo / Redo** — 追加・削除・編集・移動・リンク設定をまとめて元に戻せる
 - **表示** — ズーム（Ctrl+ホイール）、パン（中ボタンドラッグ）、ノードの自動サイズ調整
@@ -82,11 +83,15 @@ Windows 用のインストーラー（自己完結・.NET 不要）を作るに�
 # 1. 自己完結ビルドを出力
 dotnet publish src/MindMap/MindMap.csproj -c Release -r win-x64 --self-contained true -o publish/win-x64
 
-# 2. インストーラーをコンパイル（ISCC.exe のパスは環境に合わせる）
+# 2. 既定で同梱するパッケージを publish/win-x64/plugins へ配置
+#    （MindMapPackages リポジトリ側で実行する）
+powershell -ExecutionPolicy Bypass -File ../MindMapPackages/deploy.ps1 -Release
+
+# 3. インストーラーをコンパイル（ISCC.exe のパスは環境に合わせる）
 ISCC.exe installer/MindMap.iss
 ```
 
-`installer/Output/MindMap-1.4.0-Setup.exe` が生成されます。管理者権限なしでユーザー領域に
+`installer/Output/MindMap-1.5.0-Setup.exe` が生成されます。管理者権限なしでユーザー領域に
 インストールでき、スタートメニュー登録とアンインストーラーが付きます。
 
 ### ファイルの関連付け
@@ -116,23 +121,117 @@ dotnet publish src/MindMap/MindMap.csproj -c Release -r win-x64 --self-contained
 powershell -ExecutionPolicy Bypass -File installer/package-zip.ps1
 ```
 
-`installer/Output/MindMap-1.4.0-win-x64.zip` が生成されます。展開してできる `MindMap`
+`installer/Output/MindMap-1.5.0-win-x64.zip` が生成されます。展開してできる `MindMap`
 フォルダー内の `MindMap.exe` を実行するだけで動きます。
 
 ビルド済みのインストーラーと ZIP は [Releases](../../releases) からダウンロードできます。
 
+## パッケージ
+
+MindMap は起動時に、実行ファイルの隣にある `plugins` フォルダーを見ます。
+そこに置かれたパッケージが名乗った機能を取り込むので、**本体を再ビルドせずに機能が増えます**。
+
+```
+MindMap.exe
+plugins/
+  MdViewer/
+    plugin.json          ← 何を提供するかの宣言
+    MdViewerPackage.dll  ← 実装
+    MdWpf.dll  SvgWpf.dll  ImgWpf.dll  SharpVectors.*.dll
+```
+
+`plugins/MdViewer` は**インストーラーと ZIP に同梱されています**。Markdown・SVG・画像・動画の
+表示はこれが担当していて、フォルダーごと消せば表示はテキストに落ちます。
+
+### 仕組み
+
+```
+リンク先 ─→ 拡張子で振り分け ─→ 該当するビューア
+                                  └ 無ければテキスト表示（組み込みの受け皿）
+```
+
+受け皿が常に引き受けるので、**対応していない種類でも「表示できない」で終わりません。**
+呼び出し側にも分岐がありません。
+
+宣言は種類ごとに分かれています。
+
+```json
+{
+  "id": "com.nwco.mdviewer",
+  "apiVersion": "1.0",
+  "entry": { "assembly": "MdViewerPackage.dll" },
+  "contributes": {
+    "viewers": [
+      { "type": "MdViewerPackage.MarkdownViewerFactory",
+        "extensions": [ ".md", ".markdown" ], "priority": 100 }
+    ]
+  }
+}
+```
+
+- **知らない種類は無視されるだけ**で読み込みは止まりません。新しい種類に対応した
+  パッケージを古い MindMap に入れても、その種類だけが効かない状態で済みます
+- `extensions` を宣言に書いておくと、**該当するファイルが選ばれるまで DLL を読み込みません**。
+  重い描画を抱えたパッケージを入れても起動は遅くなりません
+- 同じ拡張子を複数が名乗ったら `priority` の大きいほうが使われます
+- パッケージごとに読み込み先を分けてあるので、**同梱するライブラリの版がぶつかりません**
+- 1 つ壊れていても残りは読み込まれ、理由は起動時に 1 度だけ知らされます
+
+### 作り方
+
+`src/MindMap.Abstractions` を参照して `IContentViewerFactory` と `IContentViewer` を実装し、
+`plugin.json` に型名を書くだけです。`IContentViewer.View` が返した `FrameworkElement` が、
+そのままビューアの枠に入ります。
+
+既定で同梱しているパッケージの実装は
+[MindMapPackages](https://github.com/mitubuchi/MindMapPackages)（非公開）にあります。
+
 ## ファイル形式
 
 `.mindmap` ファイルは JSON です。ノードは親子関係を `ParentId` で表すフラットな配列として
-保持します。形式のバージョンは後方互換で、古いバージョンのファイルもそのまま開けます。
+保持します。
+
+形式のバージョン（現在 **7**）は、どちら向きにも壊れないように扱います。
+
+- **欠けている欄** — 既定値（文字列は空、数値は 0）を当てます。古い版のファイルはそのまま開けます
+- **知らない欄** — 読み飛ばさず、読んだままの形で持っておき、**保存時にそのまま書き戻します**。
+  新しい版や、あとから足したパッケージが書いた欄を、それを知らない版で開いて保存しただけで
+  失うことがありません
+
+読み込みはバージョン番号で分岐していません。番号は「何を足したか」の記録として持ちます。
+
+```
+1 = タイトルのみ（Text 欄）
+2 = タイトルと内容に分離（Title / Body 欄）
+3 = リンク（Link 欄）
+4 = 小さく表示するか（Collapsed 欄）
+5 = 制作日・更新日（CreatedAt / UpdatedAt 欄）
+7 = 知らない欄をそのまま持ち越す
+```
+
+6 は [DeviceMap](https://github.com/mitubuchi/DeviceMap) が `DeviceKey` 欄のために使っている
+ので飛ばしてあります。同じ番号が 2 つの意味を持つと、ファイルを見ただけでどちらか分からなく
+なるためです。DeviceMap が書いたファイルを MindMap で開いて保存しても、`DeviceKey` は残ります。
+
+あとから欄を足す側は、他と衝突しないよう ID で名前空間を切ってください。
+
+```json
+{ "Title": "raspberrypi",
+  "Extensions": { "com.nwco.devicemap": { "key": "dev:192.168.1.10" } } }
+```
 
 ## プロジェクト構成
 
 ```
+src/
+├─ MindMap.Abstractions/   パッケージが参照する契約（これだけが公開の窓口）
+└─ MindMap/
+
 src/MindMap/
 ├─ Models/           保存されるデータ構造
 ├─ Services/         ファイル入出力・リンク解釈
-│  └─ Viewers/       リンク先の種類ごとの表示
+│  ├─ Viewers/       リンク先の種類ごとの表示
+│  └─ Packages/      plugins の走査と DLL の読み込み
 ├─ ViewModels/       画面ロジック（アプリ全体 / ドキュメント / ノード / ビューア）
 ├─ Converters/       XAML 用のコンバーター
 ├─ Undo/             Undo/Redo の履歴管理

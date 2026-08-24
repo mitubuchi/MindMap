@@ -1,3 +1,4 @@
+using System.Text.Json;
 using ReactiveUI;
 
 namespace MindMap.ViewModels;
@@ -165,6 +166,13 @@ public sealed class NodeViewModel : ReactiveObject
     }
 
     /// <summary>true の間はテキストボックスに切り替わり、その場で編集できる。</summary>
+
+    /// <summary>
+    /// 読み込んだファイルにあった、このアプリが知らない欄。中身は解釈せず、
+    /// 保存するときにそのまま書き戻すためだけに持ち歩く
+    /// （<see cref="Models.MindMapNodeDto.Extra"/>）。画面には出さないので通知もしない。
+    /// </summary>
+    public Dictionary<string, JsonElement>? Extra { get; set; }
     public bool IsEditing
     {
         get => _isEditing;
