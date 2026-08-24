@@ -1,4 +1,4 @@
-# Package the self-contained build into a portable ZIP.
+﻿# Package the self-contained build into a portable ZIP.
 #
 # Usage (from the repository root):
 #   powershell -ExecutionPolicy Bypass -File installer/package-zip.ps1
