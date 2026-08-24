@@ -13,10 +13,27 @@ MindMap の配布物（インストーラーおよび ZIP）には、次のソ�
   このフォルダーを削除すれば配布物から外れ、これらの条項は適用されなくなります
   （Markdown・SVG・画像・動画の表示は、テキスト表示に戻ります）。
 
-  ReactiveUI は MindMap 本体が使うため、パッケージの有無にかかわらず含まれます。
+  それ以外は MindMap 本体が使うため、パッケージの有無にかかわらず含まれます。
 
   MindMap 自身は MIT License です（同梱の LICENSE を参照）。
 
+
+■ 一覧
+
+  ライセンス     ソフトウェア                          出どころ
+  ------------   -----------------------------------   ------------------
+  BSD-3-Clause   SharpVectors                          パッケージ
+  MIT            MdViewer (MdLib/MdWpf/SvgWpf/ImgWpf)  パッケージ
+  MIT            ReactiveUI, ReactiveUI.Wpf            本体
+  MIT            System.Reactive                       本体
+  MIT            Splat (Core / Builder / Logging)      本体
+  MIT            DynamicData                           本体
+  MIT            .NET ランタイム                        本体（自己完結ビルド）
+
+
+===============================================================================
+BSD-3-Clause
+===============================================================================
 
 -------------------------------------------------------------------------------
 SharpVectors
@@ -25,7 +42,6 @@ SharpVectors
 同梱場所 : plugins\MdViewer\SharpVectors.*.dll
 用途     : ビューアが SVG を描画するために使用（MdViewer パッケージ経由）
 配布元   : https://github.com/ElinamLLC/SharpVectors
-ライセンス : BSD-3-Clause
 
 Copyright (c) 2010 - 2024 Elinam LLC
 All rights reserved.
@@ -56,6 +72,14 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
+===============================================================================
+MIT
+===============================================================================
+
+次のソフトウェアはいずれも MIT License です。著作権表示はそれぞれ異なるため
+個別に記載し、条項本文はこの節の末尾に 1 回だけ載せます。
+
+
 -------------------------------------------------------------------------------
 MdViewer (MdLib / MdWpf / SvgWpf / ImgWpf)
 -------------------------------------------------------------------------------
@@ -63,9 +87,68 @@ MdViewer (MdLib / MdWpf / SvgWpf / ImgWpf)
 同梱場所 : plugins\MdViewer\MdLib.dll, MdWpf.dll, SvgWpf.dll, ImgWpf.dll
 用途     : ビューアが Markdown・SVG・画像・動画を描画するために使用
 配布元   : https://github.com/mitubuchi/MdViewer
-ライセンス : MIT
 
 Copyright (c) Keiji Mitsubuchi / Virtual IP Production
+
+
+-------------------------------------------------------------------------------
+ReactiveUI / ReactiveUI.Wpf
+-------------------------------------------------------------------------------
+
+同梱場所 : ReactiveUI.dll, ReactiveUI.Wpf.dll
+用途     : MVVM フレームワーク
+配布元   : https://github.com/reactiveui/ReactiveUI
+
+Copyright (c) .NET Foundation and Contributors
+
+
+-------------------------------------------------------------------------------
+System.Reactive (Rx.NET)
+-------------------------------------------------------------------------------
+
+同梱場所 : System.Reactive.dll
+用途     : ReactiveUI が使う Reactive Extensions
+配布元   : https://github.com/dotnet/reactive
+
+Copyright (c) .NET Foundation and Contributors
+
+
+-------------------------------------------------------------------------------
+Splat (Splat / Splat.Core / Splat.Builder / Splat.Logging)
+-------------------------------------------------------------------------------
+
+同梱場所 : Splat.dll, Splat.Core.dll, Splat.Builder.dll, Splat.Logging.dll
+用途     : ReactiveUI が使うサービス解決とログ
+配布元   : https://github.com/reactiveui/splat
+
+Copyright (c) .NET Foundation and Contributors
+
+
+-------------------------------------------------------------------------------
+DynamicData
+-------------------------------------------------------------------------------
+
+同梱場所 : DynamicData.dll
+用途     : ReactiveUI が使うコレクションの変更通知
+配布元   : https://github.com/reactivemarbles/DynamicData
+
+Copyright (c) Roland Pheasant 2011-2026
+
+
+-------------------------------------------------------------------------------
+.NET ランタイム
+-------------------------------------------------------------------------------
+
+同梱場所 : System.*.dll, PresentationFramework.dll, WindowsBase.dll ほか
+用途     : .NET のインストールを不要にするため、自己完結ビルドとして同梱
+配布元   : https://github.com/dotnet/runtime
+
+Copyright (c) .NET Foundation and Contributors
+
+
+-------------------------------------------------------------------------------
+MIT License（上記すべてに適用）
+-------------------------------------------------------------------------------
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -84,15 +167,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
-
--------------------------------------------------------------------------------
-ReactiveUI
--------------------------------------------------------------------------------
-
-同梱場所 : ReactiveUI.dll ほか
-用途     : MVVM フレームワーク
-配布元   : https://github.com/reactiveui/ReactiveUI
-ライセンス : MIT
-
-Copyright (c) .NET Foundation and Contributors

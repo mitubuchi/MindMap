@@ -248,12 +248,16 @@ MIT License — [LICENSE](LICENSE) を参照してください。
 配布物（インストーラーおよび ZIP）には第三者のソフトウェアが同梱されています。
 それぞれの条項と著作権表示は [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt) にあります。
 
-| ソフトウェア | ライセンス | 用途 | 外せるか |
+| ソフトウェア | ライセンス | 用途 | 出どころ |
 |---|---|---|---|
-| [SharpVectors](https://github.com/ElinamLLC/SharpVectors) | BSD-3-Clause | SVG の描画 | パッケージのもの |
-| [MdViewer](https://github.com/mitubuchi/MdViewer) | MIT | Markdown・画像・動画の描画 | パッケージのもの |
-| [ReactiveUI](https://github.com/reactiveui/ReactiveUI) | MIT | MVVM | 本体が使うので常に含まれる |
+| [SharpVectors](https://github.com/ElinamLLC/SharpVectors) | BSD-3-Clause | SVG の描画 | パッケージ |
+| [MdViewer](https://github.com/mitubuchi/MdViewer) | MIT | Markdown・画像・動画の描画 | パッケージ |
+| [ReactiveUI](https://github.com/reactiveui/ReactiveUI) | MIT | MVVM | 本体 |
+| [System.Reactive](https://github.com/dotnet/reactive) | MIT | Reactive Extensions | 本体 |
+| [Splat](https://github.com/reactiveui/splat) | MIT | サービス解決とログ | 本体 |
+| [DynamicData](https://github.com/reactivemarbles/DynamicData) | MIT | コレクションの変更通知 | 本体 |
+| [.NET ランタイム](https://github.com/dotnet/runtime) | MIT | 自己完結ビルドのため同梱 | 本体 |
 
 **`plugins\MdViewer` を削除すれば、SharpVectors と MdViewer は配布物から外れます。**
-その場合これらの条項は適用されず、残るのは ReactiveUI だけになります
-（Markdown や画像の表示は、テキスト表示に戻ります）。
+その場合これらの条項は適用されません（Markdown や画像の表示は、テキスト表示に戻ります）。
+「本体」の行はパッケージの有無にかかわらず含まれます。
