@@ -41,3 +41,6 @@ installer/Output/
 Thumbs.db
 Desktop.ini
 .DS_Store
+
+# Claude Code の個人設定（自動メモリの置き場所など）
+.claude/settings.local.json
