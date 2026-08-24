@@ -1,0 +1,147 @@
+<UserControl x:Class="MindMap.ViewerPane"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:conv="clr-namespace:MindMap.Converters"
+             FontSize="13"
+             KeyDown="ViewerPane_KeyDown">
+
+    <!--
+        DataContext は ViewerViewModel。
+        本文はここでそのまま書き換えられる。描き方を種類ごとに差し替えるときは
+        下の入力欄を置き換える形になる（何を出すかの判断は ViewModel 側にある）。
+    -->
+
+    <UserControl.Resources>
+        <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
+        <conv:BoolToVisibilityConverter x:Key="InverseBoolToVis" Invert="True" />
+        <conv:EnumEqualsConverter x:Key="EnumEquals" />
+    </UserControl.Resources>
+
+    <Border Background="White"
+            BorderBrush="#DDE3EA"
+            BorderThickness="1,0,0,0">
+        <DockPanel>
+            <!-- 見出し行：本文とリンクの切り替え、右端に閉じるボタン。 -->
+            <Border DockPanel.Dock="Top"
+                    Background="#F4F6F8"
+                    BorderBrush="#DDE3EA"
+                    BorderThickness="0,0,0,1"
+                    Padding="8,6">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Orientation="Horizontal">
+                        <!-- 選んだ側が出せないノードでも勝手には切り替えない。
+                             出せない理由を下に文言で出すだけにして、見ている場所を保つ。 -->
+                        <RadioButton Style="{StaticResource ViewerTabButton}"
+                                     GroupName="ViewerSource"
+                                     Content="本文"
+                                     IsChecked="{Binding SourceKind,
+                                                         Converter={StaticResource EnumEquals},
+                                                         ConverterParameter=Body,
+                                                         Mode=TwoWay}" />
+                        <RadioButton Style="{StaticResource ViewerTabButton}"
+                                     GroupName="ViewerSource"
+                                     Content="{Binding TabLabel}"
+                                     IsChecked="{Binding SourceKind,
+                                                         Converter={StaticResource EnumEquals},
+                                                         ConverterParameter=Link,
+                                                         Mode=TwoWay}" />
+                    </StackPanel>
+                    <Button Grid.Column="1"
+                            VerticalAlignment="Center"
+                            Style="{StaticResource TabCloseButton}"
+                            ToolTip="ビューアを閉じる (F7)"
+                            Command="{Binding ToggleCommand}" />
+                </Grid>
+            </Border>
+
+            <!-- いま見ているノードの見出し。長いときは末尾を省き、全体はツールチップで見せる。 -->
+            <TextBlock DockPanel.Dock="Top"
+                       Margin="10,6,10,0"
+                       FontSize="11"
+                       Foreground="#5B6673"
+                       TextTrimming="CharacterEllipsis"
+                       Text="{Binding Caption}"
+                       ToolTip="{Binding Caption}"
+                       Visibility="{Binding HasMessage, Converter={StaticResource InverseBoolToVis}}" />
+
+            <Grid Margin="10">
+                <!-- 本文。ここで書き換えた内容は、そのままノードの本文になる。
+                     入った時点から抜けるまでが 1 回ぶんの Undo になる。 -->
+                <Grid Visibility="{Binding ShowsEditor, Converter={StaticResource BoolToVis}}">
+                    <TextBox x:Name="BodyEditor"
+                             Text="{Binding Body, UpdateSourceTrigger=PropertyChanged}"
+                             AcceptsReturn="True"
+                             TextWrapping="Wrap"
+                             BorderThickness="0"
+                             Background="Transparent"
+                             FontFamily="Consolas, Yu Gothic UI, Meiryo"
+                             FontSize="12"
+                             VerticalScrollBarVisibility="Auto"
+                             HorizontalScrollBarVisibility="Disabled"
+                             GotKeyboardFocus="BodyEditor_GotKeyboardFocus"
+                             LostKeyboardFocus="BodyEditor_LostKeyboardFocus" />
+
+                    <!-- 空のときの手がかり。入力の邪魔にならないよう当たり判定は持たせない。 -->
+                    <TextBlock Text="本文をここに書けます"
+                               Margin="2,0,0,0"
+                               VerticalAlignment="Top"
+                               Foreground="#B4BCC6"
+                               FontSize="12"
+                               IsHitTestVisible="False">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Text, ElementName=BodyEditor}" Value="">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Grid>
+
+                <!-- リンク先の中身。種類ごとのビューアが組み立てたものをそのまま出す。 -->
+                <TextBox Text="{Binding LinkContent, Mode=OneWay}"
+                         IsReadOnly="True"
+                         IsReadOnlyCaretVisible="True"
+                         TextWrapping="Wrap"
+                         VerticalScrollBarVisibility="Auto"
+                         HorizontalScrollBarVisibility="Disabled"
+                         BorderThickness="0"
+                         Background="Transparent"
+                         Foreground="#3C4652"
+                         FontFamily="Consolas, Yu Gothic UI, Meiryo"
+                         FontSize="12"
+                         Visibility="{Binding ShowsLink, Converter={StaticResource BoolToVis}}" />
+
+                <!-- 出せないときは中身の代わりに理由を出し、外のアプリで開く道を添える。 -->
+                <StackPanel HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Visibility="{Binding HasMessage, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Text="{Binding Message}"
+                               TextWrapping="Wrap"
+                               TextAlignment="Center"
+                               Foreground="#8A94A0"
+                               FontSize="12" />
+
+                    <!-- Web や、ビューアで出せない形式のとき。関連付けられたアプリに渡す。
+                         ノードの脇のリンクアイコンと同じ動きになるよう、同じコマンドを呼ぶ。 -->
+                    <Button Style="{StaticResource ViewerLinkButton}"
+                            Content="リンク先を開く"
+                            Margin="0,16,0,0"
+                            HorizontalAlignment="Center"
+                            ToolTip="{Binding Link}"
+                            Visibility="{Binding ShowsOpenLink, Converter={StaticResource BoolToVis}}"
+                            Command="{Binding DataContext.OpenLinkCommand,
+                                              RelativeSource={RelativeSource AncestorType=Window}}"
+                            CommandParameter="{Binding Node}" />
+                </StackPanel>
+            </Grid>
+        </DockPanel>
+    </Border>
+</UserControl>

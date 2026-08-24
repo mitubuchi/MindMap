@@ -65,6 +65,10 @@
     <!-- 等倍に戻す：枠の中に枠 -->
     <PathGeometry x:Key="Icon.ZoomReset" Figures="M4,5 H20 V19 H4 Z M9,9 H15 V15 H9 Z" />
 
+    <!-- ビューア：画面を分けて、右側に中身を出す形 -->
+    <PathGeometry x:Key="Icon.Viewer"
+                  Figures="M3,5 H21 V19 H3 Z M14,5 V19 M16,9 H19 M16,12 H19 M16,15 H18" />
+
     <PathGeometry x:Key="Icon.Close" Figures="M5,5 L15,15 M15,5 L5,15" />
 
     <!-- リンク：枠の外に飛び出す矢印。Web のリンクにも使う。 -->
@@ -92,46 +96,42 @@
     <PathGeometry x:Key="Icon.ChevronDown" Figures="M6,9 L12,15 L18,9" />
 
     <!--
-        ノードのタイトル脇に出すリンクボタン。
+        リンクの絵柄。DataContext の Link を見て、行き先に合わせた見た目にする。
         ファイルへのリンクは、関連付けられたアプリのアイコン（PowerPoint・テキストなど）を出す。
         メール・フォルダー・マインドマップは、アプリ内の線画アイコンで揃える。
         Web のリンクは、行き先が特定のアプリに紐づかないので既定のリンク記号のまま。
+
+        ノードの脇とビューアの両方で使うので、絵柄だけを切り出してある
+        （見た目を 2 か所に書くと、片方だけ直して食い違うため）。
     -->
-    <Style x:Key="NodeLinkButton" TargetType="Button">
-        <Setter Property="Width" Value="22" />
-        <Setter Property="Height" Value="22" />
-        <Setter Property="Background" Value="Transparent" />
-        <Setter Property="Cursor" Value="Hand" />
+    <Style x:Key="LinkGlyph" TargetType="ContentControl">
+        <Setter Property="Focusable" Value="False" />
         <Setter Property="Template">
             <Setter.Value>
-                <ControlTemplate TargetType="Button">
-                    <Border x:Name="Backdrop"
-                            Background="{TemplateBinding Background}"
-                            CornerRadius="3">
-                        <Grid>
-                            <!-- 大きめのアイコンを縮めて描くので、高解像度の画面でもぼやけにくい。 -->
-                            <Image x:Name="ShellIcon"
-                                   Source="{Binding Link, Converter={StaticResource LinkIcon}}"
-                                   Width="18"
-                                   Height="18"
-                                   RenderOptions.BitmapScalingMode="HighQuality"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center" />
-                            <Path x:Name="Glyph"
-                                  Data="{StaticResource Icon.Link}"
-                                  Width="16"
-                                  Height="16"
-                                  Stretch="Uniform"
-                                  Stroke="#2F80ED"
-                                  StrokeThickness="1.7"
-                                  StrokeLineJoin="Round"
-                                  StrokeStartLineCap="Round"
-                                  StrokeEndLineCap="Round"
-                                  Visibility="Collapsed"
-                                  HorizontalAlignment="Center"
-                                  VerticalAlignment="Center" />
-                        </Grid>
-                    </Border>
+                <ControlTemplate TargetType="ContentControl">
+                    <Grid>
+                        <!-- 大きめのアイコンを縮めて描くので、高解像度の画面でもぼやけにくい。 -->
+                        <Image x:Name="ShellIcon"
+                               Source="{Binding Link, Converter={StaticResource LinkIcon}}"
+                               Width="18"
+                               Height="18"
+                               RenderOptions.BitmapScalingMode="HighQuality"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center" />
+                        <Path x:Name="Glyph"
+                              Data="{StaticResource Icon.Link}"
+                              Width="16"
+                              Height="16"
+                              Stretch="Uniform"
+                              Stroke="#2F80ED"
+                              StrokeThickness="1.7"
+                              StrokeLineJoin="Round"
+                              StrokeStartLineCap="Round"
+                              StrokeEndLineCap="Round"
+                              Visibility="Collapsed"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center" />
+                    </Grid>
                     <ControlTemplate.Triggers>
                         <!-- 種類ごとの線画に差し替える。ここに無い種類は記号のまま。 -->
                         <DataTrigger Binding="{Binding Link, Converter={StaticResource LinkKind}}"
@@ -155,8 +155,68 @@
                             <Setter TargetName="ShellIcon" Property="Visibility" Value="Collapsed" />
                             <Setter TargetName="Glyph" Property="Visibility" Value="Visible" />
                         </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ノードのタイトル脇に出すリンクボタン。絵柄だけで、ラベルは付けない。 -->
+    <Style x:Key="NodeLinkButton" TargetType="Button">
+        <Setter Property="Width" Value="22" />
+        <Setter Property="Height" Value="22" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Backdrop"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="3">
+                        <ContentControl Style="{StaticResource LinkGlyph}" />
+                    </Border>
+                    <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="Backdrop" Property="Background" Value="#E4EEFC" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        ビューアで中身を出せなかったときに添える「リンク先を開く」ボタン。
+        絵柄はノードの脇と同じものを使い、どこへ飛ぶのかが見た目で分かるようにする。
+        こちらは枠の中に置くので、絵柄の右にラベルを並べる。
+    -->
+    <Style x:Key="ViewerLinkButton" TargetType="Button">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="#2F80ED" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Padding" Value="12,7" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Backdrop"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="#C3CBD5"
+                            BorderThickness="1"
+                            CornerRadius="5"
+                            Padding="{TemplateBinding Padding}">
+                        <StackPanel Orientation="Horizontal">
+                            <ContentControl Style="{StaticResource LinkGlyph}" VerticalAlignment="Center" />
+                            <ContentPresenter Margin="7,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Backdrop" Property="Background" Value="#E4EEFC" />
+                            <Setter TargetName="Backdrop" Property="BorderBrush" Value="#2F80ED" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Backdrop" Property="Background" Value="#D3E3FA" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -304,6 +364,59 @@
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
                             <Setter TargetName="Backdrop" Property="Background" Value="#C3CBD5" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        ツールバーの入切ボタン。アイコンとラベルの扱いは ToolBarButton と同じで、
+        入っているかどうかは ToolBar 既定の見た目（押し込み）に任せる。
+    -->
+    <Style x:Key="ToolBarToggleButton"
+           TargetType="ToggleButton"
+           BasedOn="{StaticResource {x:Static ToolBar.ToggleButtonStyleKey}}">
+        <Setter Property="ToolTip" Value="{Binding Content, RelativeSource={RelativeSource Self}}" />
+        <Setter Property="ToolTipService.Placement" Value="Mouse" />
+        <Setter Property="ToolTipService.VerticalOffset" Value="-30" />
+        <Setter Property="ToolTipService.InitialShowDelay" Value="450" />
+        <Setter Property="ToolTipService.BetweenShowDelay" Value="450" />
+        <Setter Property="ToolTipService.ShowDuration" Value="20000" />
+        <Setter Property="ContentTemplate">
+            <Setter.Value>
+                <DataTemplate>
+                    <Path Style="{StaticResource ToolBarIcon}"
+                          Data="{Binding Tag, RelativeSource={RelativeSource AncestorType=ToggleButton}}" />
+                </DataTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ビューアの見出しにある、本文とリンク先を切り替えるボタン。選んだ側を塗って示す。 -->
+    <Style x:Key="ViewerTabButton" TargetType="RadioButton">
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Padding" Value="10,3" />
+        <Setter Property="Margin" Value="0,0,4,0" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="#5B6673" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RadioButton">
+                    <Border x:Name="Backdrop"
+                            Background="Transparent"
+                            CornerRadius="4"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Backdrop" Property="Background" Value="#E4EEFC" />
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Backdrop" Property="Background" Value="#2F80ED" />
+                            <Setter Property="Foreground" Value="White" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

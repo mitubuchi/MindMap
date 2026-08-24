@@ -22,6 +22,13 @@ MVVM フレームワークに [ReactiveUI](https://www.reactiveui.net/) を使�
 - **子ノードの切り出し** — ノードを右クリック →「子ノードを別のファイルに保存」で、その部分木を別の
   `.mindmap` ファイルへ。ノードのコピーが切り出し先のルートになり、元のノードとの間に相互リンクが張られる。
   元のファイルからは子ノードが消える（Undo で戻せる）
+- **ビューア** — 画面右に開閉できる作業ペイン（`F7`）。選択中のノードに追従する
+  - **本文** — その場で書き換えられる。入ってから抜けるまでが 1 回ぶんの Undo になる
+  - **リンク** — タブの見出しがリンク先のファイル名になり、その下にフルパスが出る
+  - リンク先が `.mindmap` なら、ノードの親子関係をタイトルの字下げリストで表示
+  - テキストとして読めるファイルはそのまま表示（文字コードは BOM・UTF-8・既定コードページの順に判定）
+  - Web・フォルダー・バイナリなど出せないものは理由を出し、「リンク先を開く」で関連付けられたアプリに渡す
+  - 種類ごとの表示は差し替えられる作りにしてあり、対応するものが無ければテキスト表示になる
 - **複数ドキュメント** — タブで複数のマップを同時に開ける
 - **Undo / Redo** — 追加・削除・編集・移動・リンク設定をまとめて元に戻せる
 - **表示** — ズーム（Ctrl+ホイール）、パン（中ボタンドラッグ）、ノードの自動サイズ調整
@@ -45,6 +52,7 @@ MVVM フレームワークに [ReactiveUI](https://www.reactiveui.net/) を使�
 | `F2` | 選択中のノードを編集 |
 | `Delete` | 選択中のノードとその子孫を削除 |
 | `Ctrl` + `+` / `-` / `0` | 拡大 / 縮小 / 等倍 |
+| `F7` | ビューアの表示 / 非表示 |
 
 ノードの編集中は、タイトル欄で `Enter` を押すと内容欄へ移動し、`Ctrl+Enter` で確定、
 `Esc` で編集前に戻します。
@@ -78,7 +86,7 @@ dotnet publish src/MindMap/MindMap.csproj -c Release -r win-x64 --self-contained
 ISCC.exe installer/MindMap.iss
 ```
 
-`installer/Output/MindMap-1.3.1-Setup.exe` が生成されます。管理者権限なしでユーザー領域に
+`installer/Output/MindMap-1.4.0-Setup.exe` が生成されます。管理者権限なしでユーザー領域に
 インストールでき、スタートメニュー登録とアンインストーラーが付きます。
 
 ### ファイルの関連付け
@@ -108,7 +116,7 @@ dotnet publish src/MindMap/MindMap.csproj -c Release -r win-x64 --self-contained
 powershell -ExecutionPolicy Bypass -File installer/package-zip.ps1
 ```
 
-`installer/Output/MindMap-1.3.1-win-x64.zip` が生成されます。展開してできる `MindMap`
+`installer/Output/MindMap-1.4.0-win-x64.zip` が生成されます。展開してできる `MindMap`
 フォルダー内の `MindMap.exe` を実行するだけで動きます。
 
 ビルド済みのインストーラーと ZIP は [Releases](../../releases) からダウンロードできます。
@@ -124,10 +132,12 @@ powershell -ExecutionPolicy Bypass -File installer/package-zip.ps1
 src/MindMap/
 ├─ Models/           保存されるデータ構造
 ├─ Services/         ファイル入出力・リンク解釈
-├─ ViewModels/       画面ロジック（アプリ全体 / ドキュメント / ノード）
+│  └─ Viewers/       リンク先の種類ごとの表示
+├─ ViewModels/       画面ロジック（アプリ全体 / ドキュメント / ノード / ビューア）
 ├─ Converters/       XAML 用のコンバーター
 ├─ Undo/             Undo/Redo の履歴管理
 ├─ Resources/        アイコンなどのリソース
 ├─ App.xaml          エントリポイント
-└─ MainWindow.xaml   メインウィンドウ
+├─ MainWindow.xaml   メインウィンドウ
+└─ ViewerPane.xaml   画面右のビューア
 ```

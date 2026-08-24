@@ -68,6 +68,18 @@ public sealed class MainWindowViewModel : ReactiveObject
             .ToProperty(this, x => x.Title);
 
         AddDocument(CreateDocument());
+
+        // ビューアは選択中のノードを追う。見る先はタブごとに変わるので、
+        // 開いているタブが変わるたびに、そのタブの選択へ監視を張り替える。
+        // 相対リンクを解く基準がタブ側にあるため、ノードだけでなくタブも一緒に渡す。
+        this.WhenAnyValue(x => x.ActiveDocument)
+            .Select(document => document is null
+                ? Observable.Return((Document: (DocumentViewModel?)null, Node: (NodeViewModel?)null))
+                : document
+                    .WhenAnyValue(x => x.SelectedNode)
+                    .Select(node => (Document: (DocumentViewModel?)document, Node: node)))
+            .Switch()
+            .Subscribe(t => Viewer.SetTarget(t.Document, t.Node));
     }
 
     public ObservableCollection<DocumentViewModel> Documents { get; } = new();
@@ -79,6 +91,9 @@ public sealed class MainWindowViewModel : ReactiveObject
     }
 
     public string Title => _title.Value;
+
+    /// <summary>画面右のビューア。選択中のノードの本文やリンク先を見せる。</summary>
+    public ViewerViewModel Viewer { get; } = new();
 
     public ReactiveCommand<Unit, Unit> NewDocumentCommand { get; }
 
@@ -257,24 +272,37 @@ public sealed class MainWindowViewModel : ReactiveObject
             return;
         }
 
-        await OpenExternal.Handle(link);
+        // 相対パスのままシェルに渡すと、アプリの作業フォルダーを基準に探されてしまう。
+        // リンク元のファイルの場所を基準に直してから渡す。
+        await OpenExternal.Handle(ResolveLocalPath(link) ?? link);
     }
 
     /// <summary>
-    /// リンクが手元のマインドマップファイルを指しているならその絶対パスを返す。
+    /// リンクが手元のファイルやフォルダーを指しているならその絶対パスを返す。
     /// 相対パスは、リンク元のドキュメントが置かれた場所を基準に解く。
+    /// http/https/mailto など、ファイル以外を指す URL は対象外。
     /// </summary>
-    private string? ResolveMindMapPath(string link)
+    private string? ResolveLocalPath(string link)
     {
-        // http/https/mailto など、ファイル以外を指す URL はここでは扱わない。
-        if (Uri.TryCreate(link, UriKind.Absolute, out var uri) && !uri.IsFile)
+        var path = link;
+
+        if (Uri.TryCreate(link, UriKind.Absolute, out var uri))
         {
-            return null;
+            if (!uri.IsFile)
+            {
+                return null;
+            }
+
+            // file:/// 形式で書かれたときだけ手元のパスに直す。ふつうのパスまで Uri 経由に
+            // すると、# などがフラグメントの記号として解釈されて途中で切れてしまう。
+            if (link.StartsWith("file:", StringComparison.OrdinalIgnoreCase))
+            {
+                path = uri.LocalPath;
+            }
         }
 
         try
         {
-            var path = link;
             if (!Path.IsPathRooted(path))
             {
                 if (ActiveDocument?.CurrentFilePath is not { } baseFile)
@@ -285,24 +313,33 @@ public sealed class MainWindowViewModel : ReactiveObject
                 path = Path.Combine(Path.GetDirectoryName(baseFile) ?? string.Empty, path);
             }
 
-            path = Path.GetFullPath(path);
-
-            var isMindMap = string.Equals(
-                Path.GetExtension(path),
-                MindMapFileService.FileExtension,
-                StringComparison.OrdinalIgnoreCase);
-
-            return isMindMap && File.Exists(path) ? path : null;
+            return Path.GetFullPath(path);
         }
         catch (ArgumentException)
         {
-            // パスに使えない文字が入っていた場合。リンクとしては外部に投げる。
+            // パスに使えない文字が入っていた場合。リンクは元の文字列のまま外部に投げる。
             return null;
         }
         catch (NotSupportedException)
         {
             return null;
         }
+    }
+
+    /// <summary>リンクが手元のマインドマップファイルを指しているならその絶対パスを返す。</summary>
+    private string? ResolveMindMapPath(string link)
+    {
+        if (ResolveLocalPath(link) is not { } path)
+        {
+            return null;
+        }
+
+        var isMindMap = string.Equals(
+            Path.GetExtension(path),
+            MindMapFileService.FileExtension,
+            StringComparison.OrdinalIgnoreCase);
+
+        return isMindMap && File.Exists(path) ? path : null;
     }
 
     private async Task CloseDocumentAsync(DocumentViewModel document)

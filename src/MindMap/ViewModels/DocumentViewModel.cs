@@ -45,6 +45,9 @@ public sealed class DocumentViewModel : ReactiveObject
     /// <summary>編集中のノードと、編集を始めた時点の内容。Undo と Escape の取り消しに使う。</summary>
     private (NodeViewModel Node, string Title, string Body, string Link)? _activeEdit;
 
+    /// <summary>ビューアの本文欄で編集している 1 回ぶん。キャンバス上の編集とは別に持つ。</summary>
+    private (NodeViewModel Node, string Title, string Body, string Link)? _externalEdit;
+
     private NodeViewModel? _selectedNode;
     private string? _currentFilePath;
     private bool _isDirty;
@@ -1167,14 +1170,46 @@ public sealed class DocumentViewModel : ReactiveObject
         }
 
         _activeEdit = null;
+        PushContentChange(node, (edit.Title, edit.Body, edit.Link));
+    }
 
-        if (edit.Title == node.Title && edit.Body == node.Body && edit.Link == node.Link)
+    /// <summary>
+    /// キャンバスの外（ビューアの本文欄）で内容を編集し始めたときに呼ぶ。
+    /// ノードの見た目は変えず、Undo のまとまりだけを作る。
+    /// キャンバス上の編集とは別の控えに持ち、取り違えが起きないようにする。
+    /// </summary>
+    public void BeginExternalEdit(NodeViewModel node)
+    {
+        // 別のノードに移ったときは、前のぶんをそこで確定させる。
+        if (_externalEdit is { } previous && !ReferenceEquals(previous.Node, node))
+        {
+            EndExternalEdit(previous.Node);
+        }
+
+        _externalEdit ??= (node, node.Title, node.Body, node.Link);
+    }
+
+    /// <summary>編集を終えたときに呼ぶ。始めた時点から変わっていれば 1 回の Undo として積む。</summary>
+    public void EndExternalEdit(NodeViewModel node)
+    {
+        if (_externalEdit is not { } edit || !ReferenceEquals(edit.Node, node))
+        {
+            return;
+        }
+
+        _externalEdit = null;
+        PushContentChange(node, (edit.Title, edit.Body, edit.Link));
+    }
+
+    /// <summary>編集を始めた時点と今を比べ、変わっていれば 1 回ぶんの Undo として積む。</summary>
+    private void PushContentChange(NodeViewModel node, (string Title, string Body, string Link) before)
+    {
+        if (before.Title == node.Title && before.Body == node.Body && before.Link == node.Link)
         {
             return;
         }
 
         // タイトル・本文・リンクはひとつの編集操作なので、まとめて 1 回の Undo にする。
-        var before = (edit.Title, edit.Body, edit.Link);
         var after = (node.Title, node.Body, node.Link);
 
         _history.Push(new DelegateUndoableAction(
@@ -1233,6 +1268,7 @@ public sealed class DocumentViewModel : ReactiveObject
     {
         ClearSelection();
         _activeEdit = null;
+        _externalEdit = null;
 
         foreach (var connection in Connections)
         {

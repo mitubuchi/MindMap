@@ -44,6 +44,12 @@ public partial class MainWindow : Window, IViewFor<MainWindowViewModel>
     /// <summary>スクロール位置を復元している間は、その動きを記録し返さないようにする。</summary>
     private bool _restoringScroll;
 
+    /// <summary>ビューアの幅を変えている最中かどうかと、掴んだ時点の幅・ポインタの位置。</summary>
+    private bool _resizingViewer;
+
+    private double _resizeStartWidth;
+    private Point _resizeStartPointerPosition;
+
     /// <summary>未保存確認のために閉じるのを一度キャンセルするので、二周目を見分けるフラグ。</summary>
     private bool _closeConfirmed;
 
@@ -696,6 +702,51 @@ public partial class MainWindow : Window, IViewFor<MainWindowViewModel>
         _isPanning = false;
         scroller.ReleaseMouseCapture();
         scroller.Cursor = Cursors.Arrow;
+        e.Handled = true;
+    }
+
+    // ------------------------------------------------------------ ビューアの幅
+
+    /// <summary>
+    /// ビューアとキャンバスの間の帯をドラッグして幅を変える。
+    /// GridSplitter を使わないのは、DockPanel のままで済ませるため。
+    /// 掴んだ時点を基準に測るので、上限に当たっても位置がずれない。
+    /// </summary>
+    private void ViewerSplitter_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (ViewModel is null || sender is not UIElement splitter)
+        {
+            return;
+        }
+
+        _resizingViewer = true;
+        _resizeStartWidth = ViewModel.Viewer.Width;
+        _resizeStartPointerPosition = e.GetPosition(this);
+        splitter.CaptureMouse();
+        e.Handled = true;
+    }
+
+    private void ViewerSplitter_MouseMove(object sender, MouseEventArgs e)
+    {
+        if (!_resizingViewer || ViewModel is null)
+        {
+            return;
+        }
+
+        // 左へ動かすほど広がる。行き過ぎてキャンバスが潰れないよう、幅は ViewModel 側で丸める。
+        var delta = _resizeStartPointerPosition.X - e.GetPosition(this).X;
+        ViewModel.Viewer.Resize(_resizeStartWidth + delta, ActualWidth);
+    }
+
+    private void ViewerSplitter_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (!_resizingViewer || sender is not UIElement splitter)
+        {
+            return;
+        }
+
+        _resizingViewer = false;
+        splitter.ReleaseMouseCapture();
         e.Handled = true;
     }
 
