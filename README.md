@@ -248,6 +248,12 @@ MIT License — [LICENSE](LICENSE) を参照してください。
 配布物（インストーラーおよび ZIP）には第三者のソフトウェアが同梱されています。
 それぞれの条項と著作権表示は [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt) にあります。
 
-- [SharpVectors](https://github.com/ElinamLLC/SharpVectors) — BSD-3-Clause（SVG の描画）
-- [MdViewer](https://github.com/mitubuchi/MdViewer) — MIT（Markdown・画像・動画の描画）
-- [ReactiveUI](https://github.com/reactiveui/ReactiveUI) — MIT（MVVM）
+| ソフトウェア | ライセンス | 用途 | 外せるか |
+|---|---|---|---|
+| [SharpVectors](https://github.com/ElinamLLC/SharpVectors) | BSD-3-Clause | SVG の描画 | パッケージのもの |
+| [MdViewer](https://github.com/mitubuchi/MdViewer) | MIT | Markdown・画像・動画の描画 | パッケージのもの |
+| [ReactiveUI](https://github.com/reactiveui/ReactiveUI) | MIT | MVVM | 本体が使うので常に含まれる |
+
+**`plugins\MdViewer` を削除すれば、SharpVectors と MdViewer は配布物から外れます。**
+その場合これらの条項は適用されず、残るのは ReactiveUI だけになります
+（Markdown や画像の表示は、テキスト表示に戻ります）。
