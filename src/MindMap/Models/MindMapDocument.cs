@@ -14,9 +14,11 @@ public sealed class MindMapDocument
     /// 1 = タイトルのみ（Text 欄）／2 = タイトルと内容に分離（Title / Body 欄）／
     /// 3 = リンク（Link 欄）を追加／4 = 小さく表示するか（Collapsed 欄）を追加／
     /// 5 = 制作日・更新日（CreatedAt / UpdatedAt 欄）を追加／
-    /// 7 = 知らない欄をそのまま持ち越す（<see cref="Extra"/>）。
+    /// 7 = 知らない欄をそのまま持ち越す（<see cref="Extra"/>）／
+    /// 8 = パッケージのツールが作ったノードに識別子を持たせる
+    /// （<see cref="MindMapNodeDto.Extra"/> の中の Extensions 欄）。
     ///
-    /// 6 は DeviceMap が DeviceKey 欄のために使っているので飛ばしてある。
+    /// 6 は、この形式を共有する別のプログラムが独自の欄のために使っているので飛ばしてある。
     /// 同じ番号が 2 つの意味を持つと、ファイルを見ただけでどちらか分からなくなるため。
     ///
     /// なお、読み込みはこの番号で分岐していない。欠けている欄は既定値、知らない欄は
@@ -25,7 +27,7 @@ public sealed class MindMapDocument
     /// </summary>
     public int Version { get; set; } = CurrentVersion;
 
-    public const int CurrentVersion = 7;
+    public const int CurrentVersion = 8;
 
     public List<MindMapNodeDto> Nodes { get; set; } = new();
 
@@ -85,6 +87,11 @@ public sealed class MindMapNodeDto
     /// 保存しただけで失わないため。中身は解釈しない（知らないものは知らないまま運ぶ）。
     /// 新しく欄を足す側は、他と衝突しないよう "Extensions": { "&lt;パッケージ ID&gt;": { ... } }
     /// のように名前空間を切ること。
+    ///
+    /// パッケージのツールが作ったノードに付ける識別子も、この決まりに沿って
+    /// "Extensions" の下へ置いている（<c>Services/Tools/NodeToolKey.cs</c>）。
+    /// 本体の欄を増やさないので、パッケージを入れていない版で開いて保存し直しても、
+    /// ツールは次にそのノードを見つけ直せる。
     /// </summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? Extra { get; set; }

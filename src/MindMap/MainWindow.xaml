@@ -13,6 +13,9 @@
     <Window.Resources>
         <conv:BoolToVisibilityConverter x:Key="BoolToVis" />
         <conv:BoolToVisibilityConverter x:Key="InverseBoolToVis" Invert="True" />
+        <conv:EmptyToVisibilityConverter x:Key="EmptyToVis" />
+        <conv:EmptyToVisibilityConverter x:Key="NotEmptyToVis" Invert="True" />
+        <conv:ToolIconConverter x:Key="ToolIcon" />
     </Window.Resources>
 
     <Window.InputBindings>
@@ -122,7 +125,35 @@
                         Tag="{StaticResource Icon.ZoomIn}"
                         Content="拡大 (Ctrl++)" />
                 <Separator />
-                <!-- ビューアの開閉。入っているかどうかを見せたいのでボタンではなく入切にする。 -->
+                <!--
+                    パッケージが足したツール。1 つも入っていなければ、ここには何も出ない
+                    （前後の区切り線も含めて、ツールバーの見た目は素の状態と同じになる）。
+                    ショートカットはマニフェスト側に書かれているので、
+                    キー操作の登録は MainWindow.xaml.cs で行う。
+                -->
+                <ItemsControl ItemsSource="{Binding Tools}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:MapToolViewModel}">
+                            <Button Style="{StaticResource ToolBarButton}"
+                                    Command="{Binding Command}"
+                                    ToolTip="{Binding ToolTip}"
+                                    Tag="{Binding Icon, Converter={StaticResource ToolIcon}}"
+                                    Content="{Binding Label}" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <Separator Visibility="{Binding Tools.Count, Converter={StaticResource NotEmptyToVis}}" />
+
+                <!--
+                    ビューアの開閉。入っているかどうかを見せたいのでボタンではなく入切にする。
+                    ツールより右に置くのは、本体の表示切り替えであって、
+                    パッケージが増えても位置が変わらない場所に居てほしいため。
+                -->
                 <ToggleButton Style="{StaticResource ToolBarToggleButton}"
                               IsChecked="{Binding Viewer.IsVisible, Mode=TwoWay}"
                               Tag="{StaticResource Icon.Viewer}"
@@ -132,8 +163,15 @@
 
         <StatusBar DockPanel.Dock="Bottom">
             <StatusBarItem>
-                <TextBlock Foreground="#666"
-                           Text="ドラッグで移動 / ダブルクリックで編集 / Ctrl+クリックや余白のドラッグで複数選択 / Ctrl+Enter で確定 / Ctrl+ホイールで拡大縮小" />
+                <!-- ツールが動いている間と、終わったあとは、案内より結果を優先して出す。 -->
+                <Grid>
+                    <TextBlock Foreground="#666"
+                               Text="ドラッグで移動 / ダブルクリックで編集 / Ctrl+クリックや余白のドラッグで複数選択 / Ctrl+Enter で確定 / Ctrl+ホイールで拡大縮小"
+                               Visibility="{Binding ActiveDocument.ToolStatus, Converter={StaticResource EmptyToVis}}" />
+                    <TextBlock Foreground="#444"
+                               FontWeight="SemiBold"
+                               Text="{Binding ActiveDocument.ToolStatus}" />
+                </Grid>
             </StatusBarItem>
             <StatusBarItem HorizontalAlignment="Right">
                 <StackPanel Orientation="Horizontal">

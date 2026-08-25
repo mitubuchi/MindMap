@@ -1,7 +1,9 @@
 using System.IO;
 using System.Reflection;
 using System.Text.Json;
+using MindMap.Abstractions.Tools;
 using MindMap.Abstractions.Viewers;
+using MindMap.Services.Tools;
 using MindMap.Services.Viewers;
 
 namespace MindMap.Services.Packages;
@@ -28,10 +30,10 @@ public static class PackageLoader
     /// 実行ファイルの隣にある <c>plugins</c> を走査する。
     /// フォルダーが無ければ何もしない（パッケージを 1 つも入れていない状態が普通）。
     /// </summary>
-    public static PackageLoadResult LoadAll(ViewerRegistry viewers) =>
-        LoadAll(Path.Combine(AppContext.BaseDirectory, FolderName), viewers);
+    public static PackageLoadResult LoadAll(ViewerRegistry viewers, MapToolRegistry tools) =>
+        LoadAll(Path.Combine(AppContext.BaseDirectory, FolderName), viewers, tools);
 
-    public static PackageLoadResult LoadAll(string root, ViewerRegistry viewers)
+    public static PackageLoadResult LoadAll(string root, ViewerRegistry viewers, MapToolRegistry tools)
     {
         var loaded = new List<PackageManifest>();
         var errors = new List<string>();
@@ -52,7 +54,7 @@ public static class PackageLoader
             try
             {
                 var manifest = Read(manifestPath);
-                Distribute(manifest, folder, viewers);
+                Distribute(manifest, folder, viewers, tools);
                 loaded.Add(manifest);
             }
             catch (Exception ex)
@@ -101,7 +103,11 @@ public static class PackageLoader
     }
 
     /// <summary>宣言された提供物を、種類ごとのレジストリへ配る。種類が増えたらここに足す。</summary>
-    private static void Distribute(PackageManifest manifest, string folder, ViewerRegistry viewers)
+    private static void Distribute(
+        PackageManifest manifest,
+        string folder,
+        ViewerRegistry viewers,
+        MapToolRegistry tools)
     {
         foreach (var contribution in manifest.Contributes.Viewers)
         {
@@ -116,15 +122,47 @@ public static class PackageLoader
                 id,
                 contribution.Priority,
                 contribution.Extensions,
-                () => CreateFactory(manifest, folder, contribution.Type)));
+                () => Create<IContentViewerFactory>(manifest, folder, contribution.Type)));
+        }
+
+        // 欄名の確かめは、ツールを 1 つでも名乗ったときだけ行う
+        // （ビューアしか提供しないパッケージには関係が無いため）。
+        if (manifest.Contributes.Tools.Count > 0 && manifest.NodeKey is { Length: > 0 } nodeKey)
+        {
+            NodeToolKey.RequireUsable(manifest.Id, nodeKey);
+        }
+
+        foreach (var contribution in manifest.Contributes.Tools)
+        {
+            if (string.IsNullOrWhiteSpace(contribution.Type))
+            {
+                throw new InvalidDataException("tools に type が書かれていません。");
+            }
+
+            // 名前が無いとツールバーに出しても何のボタンか分からない。
+            // 型名で代用せず、書き忘れとして知らせる。
+            if (string.IsNullOrWhiteSpace(contribution.Title))
+            {
+                throw new InvalidDataException($"tools の {contribution.Type} に title が書かれていません。");
+            }
+
+            tools.Add(new PackageTool(
+                $"{manifest.Id}/{contribution.Type}",
+                manifest.Id,
+                manifest.NodeKey,
+                contribution.Title,
+                contribution.Description,
+                contribution.Icon,
+                contribution.Shortcut,
+                () => Create<IMapTool>(manifest, folder, contribution.Type)));
         }
     }
 
     /// <summary>
-    /// 実際に必要になった時点で DLL を読み、ファクトリを作る。
+    /// 実際に必要になった時点で DLL を読み、提供物を作る。
     /// 読み込み先はパッケージごとに分けてあるので、同梱したライブラリの版がぶつからない。
     /// </summary>
-    private static IContentViewerFactory CreateFactory(PackageManifest manifest, string folder, string typeName)
+    private static T Create<T>(PackageManifest manifest, string folder, string typeName)
     {
         if (manifest.Entry?.Assembly is not { Length: > 0 } assemblyName)
         {
@@ -143,13 +181,13 @@ public static class PackageLoader
         var type = assembly.GetType(typeName, throwOnError: false)
                    ?? throw new TypeLoadException($"{manifest.Id}: {typeName} が見つかりません。");
 
-        if (Activator.CreateInstance(type) is not IContentViewerFactory factory)
+        if (Activator.CreateInstance(type) is not T instance)
         {
             throw new InvalidCastException(
-                $"{manifest.Id}: {typeName} は {nameof(IContentViewerFactory)} を実装していません。");
+                $"{manifest.Id}: {typeName} は {typeof(T).Name} を実装していません。");
         }
 
-        return factory;
+        return instance;
     }
 }
 

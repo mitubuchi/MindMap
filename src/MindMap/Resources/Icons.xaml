@@ -1,4 +1,4 @@
-<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:conv="clr-namespace:MindMap.Converters"
                     xmlns:svc="clr-namespace:MindMap.Services">
@@ -68,6 +68,16 @@
     <!-- ビューア：画面を分けて、右側に中身を出す形 -->
     <PathGeometry x:Key="Icon.Viewer"
                   Figures="M3,5 H21 V19 H3 Z M14,5 V19 M16,9 H19 M16,12 H19 M16,15 H18" />
+
+    <!--
+        パッケージのツール。マニフェストにアイコンが書かれていないときに使う既定の印。
+        歯車の形で「何かを実行するもの」を表す。
+    -->
+    <PathGeometry x:Key="Icon.Tool"
+                  Figures="M12,8.5 A3.5,3.5 0 0 1 12,15.5 A3.5,3.5 0 0 1 12,8.5
+                           M12,3 V6 M12,18 V21 M3,12 H6 M18,12 H21
+                           M5.6,5.6 L7.8,7.8 M16.2,16.2 L18.4,18.4
+                           M18.4,5.6 L16.2,7.8 M7.8,16.2 L5.6,18.4" />
 
     <PathGeometry x:Key="Icon.Close" Figures="M5,5 L15,15 M15,5 L5,15" />
 

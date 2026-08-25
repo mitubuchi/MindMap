@@ -9,6 +9,7 @@ using System.Windows.Shapes;
 using System.Windows.Threading;
 using Microsoft.Win32;
 using MindMap.Services;
+using MindMap.Services.Tools;
 using MindMap.Services.Viewers;
 using MindMap.ViewModels;
 using ReactiveUI;
@@ -54,14 +55,15 @@ public partial class MainWindow : Window, IViewFor<MainWindowViewModel>
     /// <summary>未保存確認のために閉じるのを一度キャンセルするので、二周目を見分けるフラグ。</summary>
     private bool _closeConfirmed;
 
-    public MainWindow(ViewerRegistry viewers)
+    public MainWindow(ViewerRegistry viewers, MapToolRegistry tools)
     {
         InitializeComponent();
 
-        ViewModel = new MainWindowViewModel(viewers);
+        ViewModel = new MainWindowViewModel(viewers, tools);
         DataContext = ViewModel;
 
         RegisterInteractionHandlers();
+        RegisterToolShortcuts();
     }
 
     public MainWindowViewModel? ViewModel
@@ -103,6 +105,36 @@ public partial class MainWindow : Window, IViewFor<MainWindowViewModel>
     }
 
     /// <summary>ViewModel からのダイアログ要求を、実際の WPF ダイアログにつなぐ。</summary>
+    /// <summary>
+    /// パッケージのツールに書かれたショートカットを足す。
+    ///
+    /// XAML で書いたぶんが先に入っているので、本体と重なるキーは本体が勝つ
+    /// （パッケージを入れただけで本体の操作が変わってしまわないようにする）。
+    /// 読めないキーはボタンだけ残して黙って飛ばす。ツール自体は押せば動くので、
+    /// 起動を止めてまで知らせることではない。
+    /// </summary>
+    private void RegisterToolShortcuts()
+    {
+        var converter = new KeyGestureConverter();
+
+        foreach (var tool in ViewModel!.Tools.Where(t => t.Tool.Shortcut is { Length: > 0 }))
+        {
+            try
+            {
+                if (converter.ConvertFromInvariantString(tool.Tool.Shortcut!) is KeyGesture gesture)
+                {
+                    InputBindings.Add(new KeyBinding(tool.Command, gesture));
+                }
+            }
+            catch (NotSupportedException)
+            {
+            }
+            catch (FormatException)
+            {
+            }
+        }
+    }
+
     private void RegisterInteractionHandlers()
     {
         if (ViewModel is null)

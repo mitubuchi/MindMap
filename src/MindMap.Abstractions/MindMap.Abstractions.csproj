@@ -5,8 +5,9 @@
       パッケージが参照する唯一のアセンブリ。ホスト（MindMap.exe）より低い
       プラットフォーム版を狙うことで、パッケージ側は net9.0-windows のままで書ける。
 
-      ビューアは画面そのものを返すので WPF への参照が要る。ここを分けずに 1 つに
-      しているのは、この規模で「UI 無しの契約」を別に切っても使い道が無いため。
+      ビューアは画面そのものを返すので WPF への参照が要る。ツールも自前のダイアログを
+      出せるよう親ウィンドウを受け取る。ここを分けずに 1 つにしているのは、
+      この規模で「UI 無しの契約」を別に切っても使い道が無いため。
     -->
     <TargetFramework>net9.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
@@ -23,9 +24,9 @@
       パッケージの互換判定に使う版。契約を壊す変更をしたときだけ上げる。
       アプリの版（MindMap.csproj の Version）とは別に動かす。
     -->
-    <Version>1.0.0</Version>
-    <FileVersion>1.0.0.0</FileVersion>
-    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <Version>1.1.0</Version>
+    <FileVersion>1.1.0.0</FileVersion>
+    <AssemblyVersion>1.1.0.0</AssemblyVersion>
   </PropertyGroup>
 
 </Project>

@@ -29,6 +29,18 @@ public sealed class PackageManifest
 
     public PackageEntry? Entry { get; set; }
 
+    /// <summary>
+    /// ツールが作ったノードに付ける識別子を、ノードのどの欄に置くか。
+    ///
+    /// 省略するのが普通で、その場合は "Extensions" の下にパッケージ ID で名前空間を切って
+    /// 置かれる（ぶつかる心配が無い）。ここに名前を書くと、ノードの直下にその名前で置く。
+    /// 同じ形式のファイルを読み書きする別のプログラムと、同じ欄を使いたいときのためのもの。
+    ///
+    /// 本体が使っている欄の名前は指定できない（読み込み時に理由を出して止まる）。
+    /// パッケージ全体で 1 つ。同じパッケージの別のツールでも、同じノードを見つけ直せるようにする。
+    /// </summary>
+    public string? NodeKey { get; set; }
+
     public PackageContributions Contributes { get; set; } = new();
 }
 
@@ -51,6 +63,9 @@ public sealed class PackageContributions
     /// <summary>リンク先の表示。</summary>
     public List<ViewerContribution> Viewers { get; set; } = [];
 
+    /// <summary>ツールバーに並ぶ操作。</summary>
+    public List<ToolContribution> Tools { get; set; } = [];
+
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? Extra { get; set; }
 }
@@ -69,4 +84,34 @@ public sealed class ViewerContribution
 
     /// <summary>同じ拡張子を複数のパッケージが名乗ったときの優先順位。大きいほうが勝つ。</summary>
     public int Priority { get; set; } = 100;
+}
+
+/// <summary>
+/// ツールを 1 つ提供する宣言。
+///
+/// 名前・アイコン・ショートカットをここに書くのは、ツールバーを組み立てるために
+/// DLL を読み込まずに済ませるため（押されるまで読み込まない）。
+/// </summary>
+public sealed class ToolContribution
+{
+    /// <summary><c>IMapTool</c> を実装した型の完全名。引数の無いコンストラクタが要る。</summary>
+    public string Type { get; set; } = string.Empty;
+
+    /// <summary>ツールバーのツールチップに出す名前。</summary>
+    public string Title { get; set; } = string.Empty;
+
+    /// <summary>名前だけでは足りないときの補足。ツールチップの 2 行目に出る。</summary>
+    public string? Description { get; set; }
+
+    /// <summary>
+    /// アイコンの図形。WPF の Path と同じミニ言語（"M12,17 A1.6,1.6 0 0 1 …"）で、
+    /// 24x24 を目安に線だけで描く（塗りは付かない）。省略すると既定の印になる。
+    /// </summary>
+    public string? Icon { get; set; }
+
+    /// <summary>
+    /// "F5" や "Ctrl+Shift+D" のようなキー。省略するとショートカットは作らない。
+    /// 本体が使っているキーと重なった場合は、本体側が勝つ。
+    /// </summary>
+    public string? Shortcut { get; set; }
 }

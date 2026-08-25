@@ -5,8 +5,10 @@ using System.Reactive;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
 using System.Text.Json;
+using MindMap.Abstractions.Tools;
 using MindMap.Models;
 using MindMap.Services;
+using MindMap.Services.Tools;
 using MindMap.Undo;
 using ReactiveUI;
 
@@ -55,6 +57,8 @@ public sealed class DocumentViewModel : ReactiveObject
     private bool _canUndo;
     private bool _canRedo;
     private double _zoom = 1.0;
+    private bool _isToolRunning;
+    private string _toolStatus = string.Empty;
 
     /// <summary>読み込んだファイルにあった、ファイル全体に付く知らない欄。保存時に書き戻す。</summary>
     private Dictionary<string, JsonElement>? _documentExtra;
@@ -234,6 +238,20 @@ public sealed class DocumentViewModel : ReactiveObject
     public double ScrollOffsetX { get; set; }
 
     public double ScrollOffsetY { get; set; }
+
+    /// <summary>ツールを実行している最中かどうか。二重に走らせないためと、ボタンの有効/無効に使う。</summary>
+    public bool IsToolRunning
+    {
+        get => _isToolRunning;
+        private set => this.RaiseAndSetIfChanged(ref _isToolRunning, value);
+    }
+
+    /// <summary>ツールの進み具合と結果。ステータスバーに出す。空なら通常の案内が出る。</summary>
+    public string ToolStatus
+    {
+        get => _toolStatus;
+        private set => this.RaiseAndSetIfChanged(ref _toolStatus, value);
+    }
 
     public ReactiveCommand<Unit, Unit> SaveCommand { get; }
 
@@ -495,6 +513,184 @@ public sealed class DocumentViewModel : ReactiveObject
                 SetSelection(created, created[^1]);
                 IsDirty = true;
             }));
+    }
+
+    /// <summary>
+    /// パッケージのツールを実行し、返ってきたノードをマップに重ねる。
+    ///
+    /// 何を置くかはツールが決め、どう重ねるか（作るか書き換えるか・どこに置くか・
+    /// 1 回の Undo にまとめること）はここが決める。パッケージごとに重ね方が違うと、
+    /// 同じ操作でも手で並べ替えた配置が残ったり消えたりしてしまうため。
+    /// </summary>
+    public async Task RunToolAsync(PackageTool tool)
+    {
+        if (IsToolRunning)
+        {
+            return;
+        }
+
+        IsToolRunning = true;
+        ToolStatus = $"{tool.Title}…";
+
+        try
+        {
+            // UI スレッドで作るので、ツールが別スレッドから報告してもそのまま画面に出せる。
+            var progress = new Progress<string>(message => ToolStatus = message);
+
+            var result = await tool.RunAsync(CollectToolKeys(tool), progress, CancellationToken.None);
+
+            var (created, updated) = ApplyToolNodes(tool, result.Nodes);
+
+            ToolStatus = result.Message ?? (created + updated == 0
+                ? "変更はありませんでした"
+                : $"{created} 個を追加 / {updated} 個を更新");
+        }
+        catch (Exception ex)
+        {
+            // 詳しい理由はホスト側がダイアログで見せる。途中経過を残したままにしない。
+            ToolStatus = $"{tool.Title}: {ex.Message}";
+            throw;
+        }
+        finally
+        {
+            IsToolRunning = false;
+        }
+    }
+
+    /// <summary>このパッケージが前に置いたノードの識別子。ツールへ渡す。</summary>
+    private IReadOnlyCollection<string> CollectToolKeys(PackageTool tool) =>
+        Nodes.Select(n => NodeToolKey.Get(n, tool.Owner, tool.NodeKeyField))
+            .OfType<string>()
+            .ToHashSet(StringComparer.Ordinal);
+
+    /// <summary>
+    /// ツールが返した木を、ルートの子として重ねる。すでにあるノードは識別子で見つけて
+    /// 中身だけを書き換えるので、何度実行しても同じものが増えていくことはない。
+    /// 位置も動かさないため、手で並べ替えた配置と、手で足した子ノードはそのまま残る。
+    ///
+    /// 結果に出てこなくなったノードは消さない。見つからなかっただけなのか、
+    /// 無くなったのかは、ここでは判断できないため。
+    ///
+    /// 追加と書き換えはまとめて 1 回の Undo で戻せる。
+    /// </summary>
+    private (int Created, int Updated) ApplyToolNodes(PackageTool tool, IReadOnlyList<MapNodeSpec> specs)
+    {
+        if (specs.Count == 0 || Nodes.FirstOrDefault(n => n.Parent is null) is not { } root)
+        {
+            return (0, 0);
+        }
+
+        // 貼り付けなどで同じ識別子のノードが増えていても、先に見つけた方だけを相手にする。
+        var byKey = new Dictionary<string, NodeViewModel>(StringComparer.Ordinal);
+        foreach (var node in Nodes)
+        {
+            if (NodeToolKey.Get(node, tool.Owner, tool.NodeKeyField) is { } key)
+            {
+                byKey.TryAdd(key, node);
+            }
+        }
+
+        var created = new List<NodeViewModel>();
+        var edited = new List<(NodeViewModel Node,
+            (string Title, string Body, string Link) Before,
+            (string Title, string Body, string Link) After)>();
+
+        void Ensure(MapNodeSpec spec, NodeViewModel parent)
+        {
+            if (string.IsNullOrEmpty(spec.Key))
+            {
+                throw new InvalidDataException("ツールが key の無いノードを返しました。");
+            }
+
+            if (byKey.TryGetValue(spec.Key, out var node))
+            {
+                // リンクは、利用者が手で設定したものをツールの結果で消さない。
+                var link = string.IsNullOrEmpty(spec.Link) ? node.Link : spec.Link;
+
+                if (node.Title != spec.Title || node.Body != spec.Body || node.Link != link)
+                {
+                    edited.Add((node, (node.Title, node.Body, node.Link), (spec.Title, spec.Body, link)));
+                    node.Title = spec.Title;
+                    node.Body = spec.Body;
+                    node.Link = link;
+                }
+            }
+            else
+            {
+                var (x, y) = NextChildPosition(parent);
+
+                node = new NodeViewModel(Guid.NewGuid(), spec.Title, spec.Body, x, y, spec.Link)
+                {
+                    Parent = parent,
+                };
+
+                NodeToolKey.Set(node, tool.Owner, tool.NodeKeyField, spec.Key);
+
+                AddNode(node);
+                created.Add(node);
+                byKey[spec.Key] = node;
+            }
+
+            foreach (var child in spec.Children)
+            {
+                Ensure(child, node);
+            }
+        }
+
+        foreach (var spec in specs)
+        {
+            Ensure(spec, root);
+        }
+
+        if (created.Count == 0 && edited.Count == 0)
+        {
+            return (0, 0);
+        }
+
+        IsDirty = true;
+
+        if (created.Count > 0)
+        {
+            SetSelection(created, created[^1]);
+        }
+
+        _history.Push(new DelegateUndoableAction(
+            undo: () =>
+            {
+                foreach (var (node, before, _) in edited)
+                {
+                    (node.Title, node.Body, node.Link) = before;
+                }
+
+                // 親を先に作ってあるので、消すのは逆順（子から）にする。
+                for (var i = created.Count - 1; i >= 0; i--)
+                {
+                    RemoveNode(created[i]);
+                }
+
+                IsDirty = true;
+            },
+            redo: () =>
+            {
+                foreach (var node in created)
+                {
+                    AddNode(node);
+                }
+
+                foreach (var (node, _, after) in edited)
+                {
+                    (node.Title, node.Body, node.Link) = after;
+                }
+
+                if (created.Count > 0)
+                {
+                    SetSelection(created, created[^1]);
+                }
+
+                IsDirty = true;
+            }));
+
+        return (created.Count, edited.Count);
     }
 
     /// <summary>ファイル選択ダイアログを開き、選ばれたファイルをノードのリンクにする。</summary>
@@ -763,18 +959,9 @@ public sealed class DocumentViewModel : ReactiveObject
             return;
         }
 
-        // 既存の子の下に積む。まだ子がいなければ親の真横に置く。
-        var siblings = ChildrenOf(parent);
-        var y = siblings.Count == 0
-            ? parent.Y
-            : siblings.Max(n => n.Y + n.Height) + VerticalGap;
+        var (x, y) = NextChildPosition(parent);
 
-        InsertNode(new NodeViewModel(
-            Guid.NewGuid(),
-            "新しいノード",
-            string.Empty,
-            parent.X + parent.Width + HorizontalGap,
-            y)
+        InsertNode(new NodeViewModel(Guid.NewGuid(), "新しいノード", string.Empty, x, y)
         {
             Parent = parent,
         });
@@ -801,6 +988,19 @@ public sealed class DocumentViewModel : ReactiveObject
         {
             Parent = parent,
         });
+    }
+
+    /// <summary>
+    /// 親に子を足すときの位置。既存の子の下に積み、まだ子がいなければ親の真横に置く。
+    /// 手で足すときもツールが足すときも同じ並びになるよう、1 か所にまとめてある。
+    /// </summary>
+    private (double X, double Y) NextChildPosition(NodeViewModel parent)
+    {
+        var siblings = ChildrenOf(parent);
+
+        return (
+            parent.X + parent.Width + HorizontalGap,
+            siblings.Count == 0 ? parent.Y : siblings.Max(n => n.Y + n.Height) + VerticalGap);
     }
 
     private List<NodeViewModel> ChildrenOf(NodeViewModel parent) =>

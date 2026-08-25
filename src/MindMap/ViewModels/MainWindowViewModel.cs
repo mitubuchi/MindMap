@@ -4,6 +4,7 @@ using System.IO;
 using System.Reactive;
 using System.Reactive.Linq;
 using MindMap.Services;
+using MindMap.Services.Tools;
 using MindMap.Services.Viewers;
 using ReactiveUI;
 
@@ -22,7 +23,7 @@ public sealed class MainWindowViewModel : ReactiveObject
 
     private DocumentViewModel? _activeDocument;
 
-    public MainWindowViewModel(ViewerRegistry viewers)
+    public MainWindowViewModel(ViewerRegistry viewers, MapToolRegistry tools)
     {
         Viewer = new ViewerViewModel(viewers);
 
@@ -54,6 +55,9 @@ public sealed class MainWindowViewModel : ReactiveObject
             () => CloseDocumentAsync(ActiveDocument!),
             hasActiveDocument);
 
+        // パッケージのツール。入っていなければ空のままで、ツールバーには何も増えない。
+        Tools = tools.Tools.Select(CreateToolCommand).ToList();
+
         Observable
             .Merge(
                 NewDocumentCommand.ThrownExceptions,
@@ -61,7 +65,10 @@ public sealed class MainWindowViewModel : ReactiveObject
                 OpenLinkCommand.ThrownExceptions,
                 SaveAllCommand.ThrownExceptions,
                 CloseDocumentCommand.ThrownExceptions,
-                CloseActiveDocumentCommand.ThrownExceptions)
+                CloseActiveDocumentCommand.ThrownExceptions,
+
+                // パッケージのツールで起きた例外も、本体の操作と同じところで見せる。
+                Observable.Merge(Tools.Select(t => t.Command.ThrownExceptions)))
             .SelectMany(ex => ShowError.Handle(ex.Message))
             .Subscribe();
 
@@ -97,6 +104,12 @@ public sealed class MainWindowViewModel : ReactiveObject
 
     /// <summary>画面右のビューア。選択中のノードの本文やリンク先を見せる。</summary>
     public ViewerViewModel Viewer { get; }
+
+    /// <summary>
+    /// パッケージが名乗ったツール。ツールバーの末尾に、宣言された順に並ぶ。
+    /// 顔ぶれは起動時に決まって以降変わらないので、通知の要らない普通の一覧で持つ。
+    /// </summary>
+    public IReadOnlyList<MapToolViewModel> Tools { get; }
 
     public ReactiveCommand<Unit, Unit> NewDocumentCommand { get; }
 
@@ -145,6 +158,23 @@ public sealed class MainWindowViewModel : ReactiveObject
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// ツール 1 つぶんのボタンを作る。対象は「いま開いているタブ」なので、
+    /// 実行のたびに <see cref="ActiveDocument"/> を見に行く。
+    /// </summary>
+    private MapToolViewModel CreateToolCommand(PackageTool tool)
+    {
+        // 走っている間は押せないようにする（同じツールを二重に走らせないため）。
+        var canRun = this.WhenAnyValue(
+            x => x.ActiveDocument,
+            x => x.ActiveDocument!.IsToolRunning,
+            (document, running) => document is not null && !running);
+
+        return new MapToolViewModel(
+            tool,
+            ReactiveCommand.CreateFromTask(() => ActiveDocument!.RunToolAsync(tool), canRun));
     }
 
     private DocumentViewModel CreateDocument() =>

@@ -1,6 +1,7 @@
 using System.Text;
 using System.Windows;
 using MindMap.Services.Packages;
+using MindMap.Services.Tools;
 using MindMap.Services.Viewers;
 using ReactiveUI.Builder;
 
@@ -24,9 +25,11 @@ public partial class App : Application
             .WithWpf()
             .Build();
 
-        // 表示の種類を集めるところ。組み込みを入れてから、plugins のパッケージを足す。
+        // 提供物の置き場。種類ごとに 1 つずつ用意して、plugins のパッケージから配ってもらう。
+        // 表示（ビューア）は組み込みぶんを持って始まり、ツールは空から始まる。
         var viewers = new ViewerRegistry();
-        var packages = PackageLoader.LoadAll(viewers);
+        var tools = new MapToolRegistry();
+        var packages = PackageLoader.LoadAll(viewers, tools);
 
         // 壊れたパッケージは黙って無視せず 1 度だけ知らせる（入れたのに効かない状態が
         // いちばん分かりにくいため）。読めたぶんはそのまま使える。
@@ -39,7 +42,7 @@ public partial class App : Application
                 MessageBoxImage.Warning);
         }
 
-        var window = new MainWindow(viewers);
+        var window = new MainWindow(viewers, tools);
         MainWindow = window;
         window.Show();
 
