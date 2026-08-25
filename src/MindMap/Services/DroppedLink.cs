@@ -23,6 +23,76 @@ public static class DroppedLink
     ];
 
     /// <summary>
+    /// ブラウザーが渡してくる、URL とページの題名の組。
+    /// 題名は渡されないこともある（アドレス欄からのドラッグなど）。
+    /// </summary>
+    public sealed record DroppedUrl(string Url, string? Title);
+
+    /// <summary>ノードのリンクに使える種類。ここに無いものは落としても何も作らない。</summary>
+    private static readonly HashSet<string> LinkSchemes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        Uri.UriSchemeHttp, Uri.UriSchemeHttps, Uri.UriSchemeFtp, Uri.UriSchemeMailto,
+    };
+
+    /// <summary>
+    /// ドロップされた URL をすべて返す。ファイルのドロップでは空を返す
+    /// （ファイルは <see cref="ExtractFiles"/> が扱う）。
+    ///
+    /// 題名まで返すのは、ノードを新しく作るときに 1 行目に使うため。
+    /// リンクを差し替えるだけの <see cref="Extract"/> は URL しか要らないので、そちらは触らない。
+    /// </summary>
+    public static IReadOnlyList<DroppedUrl> ExtractUrls(IDataObject data)
+    {
+        if (data.GetDataPresent(DataFormats.FileDrop))
+        {
+            return [];
+        }
+
+        foreach (var (format, encoding) in UrlFormats)
+        {
+            if (ReadLines(data, format, encoding) is not { Count: > 0 } lines)
+            {
+                continue;
+            }
+
+            // "URL\n題名" の繰り返しで渡す形式（text/x-moz-url）がある。
+            // 2 行目が URL として読めなければ題名とみなす、という見分け方で両方に当たる。
+            var urls = new List<DroppedUrl>();
+
+            for (var i = 0; i < lines.Count; i++)
+            {
+                var url = lines[i];
+
+                if (!IsLink(url))
+                {
+                    continue;
+                }
+
+                string? title = null;
+
+                if (i + 1 < lines.Count && !IsLink(lines[i + 1]))
+                {
+                    title = lines[i + 1];
+                    i++;
+                }
+
+                urls.Add(new DroppedUrl(url, title));
+            }
+
+            if (urls.Count > 0)
+            {
+                return urls;
+            }
+        }
+
+        return [];
+    }
+
+    /// <summary>ノードのリンクとして扱える文字列か。</summary>
+    private static bool IsLink(string text) =>
+        Uri.TryCreate(text, UriKind.Absolute, out var uri) && LinkSchemes.Contains(uri.Scheme);
+
+    /// <summary>
     /// ドロップされたファイル（フォルダーを含む）のパスをすべて返す。
     /// 1 つ目だけを使う <see cref="Extract"/> と違い、まとめてノード化する用。
     /// </summary>
@@ -65,7 +135,27 @@ public static class DroppedLink
         return null;
     }
 
-    private static string? ReadString(IDataObject data, string format, Encoding encoding)
+    /// <summary>
+    /// 形式 1 つぶんを行に分けて読む。<see cref="ReadString"/> が先頭行だけを使うのに対し、
+    /// こちらは題名や 2 つ目以降の URL も残す。
+    /// </summary>
+    private static IReadOnlyList<string>? ReadLines(IDataObject data, string format, Encoding encoding)
+    {
+        if (ReadRaw(data, format, encoding) is not { } text)
+        {
+            return null;
+        }
+
+        return text
+            .Split('\n', '\r')
+            .Select(line => line.Trim().Trim('\0').Trim())
+            // text/uri-list は # で始まる行を注釈として使う。
+            .Where(line => line.Length > 0 && line[0] != '#')
+            .ToList();
+    }
+
+    /// <summary>形式 1 つぶんを文字列にして返す。渡され方（文字列 / ストリーム）を吸収する。</summary>
+    private static string? ReadRaw(IDataObject data, string format, Encoding encoding)
     {
         if (!data.GetDataPresent(format))
         {
@@ -80,7 +170,12 @@ public static class DroppedLink
             _ => raw?.ToString(),
         };
 
-        if (string.IsNullOrEmpty(text))
+        return string.IsNullOrEmpty(text) ? null : text;
+    }
+
+    private static string? ReadString(IDataObject data, string format, Encoding encoding)
+    {
+        if (ReadRaw(data, format, encoding) is not { } text)
         {
             return null;
         }

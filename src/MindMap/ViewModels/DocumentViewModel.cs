@@ -450,9 +450,7 @@ public sealed class DocumentViewModel : ReactiveObject
     /// <param name="y">落とした位置。</param>
     public void AddFileNodes(IReadOnlyList<string> paths, double x, double y)
     {
-        // 選択が無ければルートにぶら下げる。複数選択中は代表ノード（最後に選んだもの）を親にする。
-        var parent = SelectedNode ?? Nodes.FirstOrDefault(n => n.Parent is null) ?? Nodes.FirstOrDefault();
-        if (parent is null)
+        if (DropParent() is not { } parent)
         {
             return;
         }
@@ -479,6 +477,61 @@ public sealed class DocumentViewModel : ReactiveObject
             top += NodeViewModel.DefaultHeight + VerticalGap;
         }
 
+        AddDroppedNodes(created, parent);
+    }
+
+    /// <summary>
+    /// ブラウザーから落とされた URL を、選択中のノード（無ければルート）の子として追加する。
+    /// タイトルはページの題名、無ければ URL そのもの。リンクは URL を指す。
+    ///
+    /// ノードの上に落としたときと違い、こちらは<b>選択中のノードには触らない</b>。
+    /// 調べものの途中で参照を足していくとき、いま書いているノードの題名や本文を
+    /// 上書きされたくないため。複数まとめて落とされても 1 回の Undo で取り消せる。
+    /// </summary>
+    /// <param name="links">落とされた URL と、渡されていればページの題名。</param>
+    /// <param name="x">落とした位置。ここを起点に、縦に積んでいく。</param>
+    /// <param name="y">落とした位置。</param>
+    public void AddLinkNodes(IReadOnlyList<DroppedLink.DroppedUrl> links, double x, double y)
+    {
+        if (DropParent() is not { } parent)
+        {
+            return;
+        }
+
+        var created = new List<NodeViewModel>();
+        var top = y;
+
+        foreach (var link in links)
+        {
+            var title = string.IsNullOrWhiteSpace(link.Title) ? link.Url : link.Title.Trim();
+
+            // 題名を 1 行目に出したときは、URL が見えなくなるので本文に残す。
+            var body = title == link.Url ? string.Empty : link.Url;
+
+            created.Add(new NodeViewModel(Guid.NewGuid(), title, body, x, top, link.Url)
+            {
+                Parent = parent,
+            });
+
+            top += NodeViewModel.DefaultHeight + VerticalGap;
+        }
+
+        AddDroppedNodes(created, parent);
+    }
+
+    /// <summary>
+    /// 落とされたものをぶら下げる先。選択が無ければルートにする。
+    /// 複数選択中は代表ノード（最後に選んだもの）を親にする。
+    /// </summary>
+    private NodeViewModel? DropParent() =>
+        SelectedNode ?? Nodes.FirstOrDefault(n => n.Parent is null) ?? Nodes.FirstOrDefault();
+
+    /// <summary>
+    /// 落として作ったノードをマップに入れ、1 回の Undo でまとめて取り消せるようにする。
+    /// ファイルでも URL でも同じ扱いにしたいので、ここに寄せてある。
+    /// </summary>
+    private void AddDroppedNodes(List<NodeViewModel> created, NodeViewModel parent)
+    {
         if (created.Count == 0)
         {
             return;
