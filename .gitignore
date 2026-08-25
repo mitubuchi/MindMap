@@ -44,3 +44,7 @@ Desktop.ini
 
 # Claude Code の個人設定（自動メモリの置き場所など）
 .claude/settings.local.json
+
+# ClaudeLog パッケージが書き出した会話。取り込むたびに増える。
+# 先頭の / でリポジトリ直下だけを指す（/packages/ と同じ理由）。
+/Log/
