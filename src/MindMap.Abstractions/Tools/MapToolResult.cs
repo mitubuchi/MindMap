@@ -18,4 +18,13 @@ public sealed class MapToolResult
     /// ルートノードの子として重ねる木。空でもよい（<see cref="Message"/> だけを出せる）。
     /// </summary>
     public IReadOnlyList<MapNodeSpec> Nodes { get; init; } = [];
+
+    /// <summary>
+    /// ルートノード自身に書き込む内容。null なら触らない。
+    ///
+    /// マップ全体が何のマップなのか（どの PC から見た何を並べたものか）は、
+    /// 木の中ではなくルートに出したいことがあるため。上書きになるので、
+    /// 実行のたびに変わる情報を出すために使う。
+    /// </summary>
+    public MapRootSpec? Root { get; init; }
 }

@@ -539,7 +539,7 @@ public sealed class DocumentViewModel : ReactiveObject
 
             var result = await tool.RunAsync(CollectToolKeys(tool), progress, CancellationToken.None);
 
-            var (created, updated) = ApplyToolNodes(tool, result.Nodes);
+            var (created, updated) = ApplyToolNodes(tool, result);
 
             ToolStatus = result.Message ?? (created + updated == 0
                 ? "変更はありませんでした"
@@ -571,11 +571,17 @@ public sealed class DocumentViewModel : ReactiveObject
     /// 結果に出てこなくなったノードは消さない。見つからなかっただけなのか、
     /// 無くなったのかは、ここでは判断できないため。
     ///
+    /// ルートだけは識別子で探さず、いまのルートをそのまま書き換える
+    /// （<see cref="MapToolResult.Root"/>）。ルートは常に 1 つで、増えも消えもしないため。
+    ///
     /// 追加と書き換えはまとめて 1 回の Undo で戻せる。
     /// </summary>
-    private (int Created, int Updated) ApplyToolNodes(PackageTool tool, IReadOnlyList<MapNodeSpec> specs)
+    private (int Created, int Updated) ApplyToolNodes(PackageTool tool, MapToolResult result)
     {
-        if (specs.Count == 0 || Nodes.FirstOrDefault(n => n.Parent is null) is not { } root)
+        var specs = result.Nodes;
+
+        if ((specs.Count == 0 && result.Root is null)
+            || Nodes.FirstOrDefault(n => n.Parent is null) is not { } root)
         {
             return (0, 0);
         }
@@ -634,6 +640,20 @@ public sealed class DocumentViewModel : ReactiveObject
             foreach (var child in spec.Children)
             {
                 Ensure(child, node);
+            }
+        }
+
+        if (result.Root is { } rootSpec)
+        {
+            // リンクの扱いは他のノードと同じ。空なら手で設定したものを残す。
+            var link = string.IsNullOrEmpty(rootSpec.Link) ? root.Link : rootSpec.Link;
+
+            if (root.Title != rootSpec.Title || root.Body != rootSpec.Body || root.Link != link)
+            {
+                edited.Add((root, (root.Title, root.Body, root.Link), (rootSpec.Title, rootSpec.Body, link)));
+                root.Title = rootSpec.Title;
+                root.Body = rootSpec.Body;
+                root.Link = link;
             }
         }
 
