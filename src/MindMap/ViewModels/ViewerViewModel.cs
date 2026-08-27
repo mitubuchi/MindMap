@@ -92,8 +92,9 @@ public sealed class ViewerViewModel : ReactiveObject
         request
             .Where(r => r.Kind == ViewerSource.Link)
             .Throttle(SettleDelay, RxSchedulers.MainThreadScheduler)
-            .Select(r => ResolveTarget(r.Link).Path is { } path
-                ? Observable.FromAsync(ct => _session.ShowAsync(new ViewerContent(path), ct))
+            .Select(r => ResolveTarget(r.Link) is { Path: { } path } target
+                ? Observable.FromAsync(ct => _session.ShowAsync(
+                    new ViewerContent(path) { IsDirectory = target.IsDirectory }, ct))
                 : Observable.Empty<FrameworkElement>())
             .Switch()
             .ObserveOn(RxSchedulers.MainThreadScheduler)
@@ -364,9 +365,11 @@ public sealed class ViewerViewModel : ReactiveObject
                 null, "リンクの場所を特定できません。相対パスのリンクは、マップを保存してから使えます。", false);
         }
 
+        // フォルダーもビューアに渡す。中身の一覧は組み込みが出すが、
+        // 別の見せ方をするパッケージがあればそちらが勝つ。
         if (Directory.Exists(path))
         {
-            return new LinkResolution(null, "フォルダーを出せるビューアがまだありません。", true);
+            return new LinkResolution(path, null, true, IsDirectory: true);
         }
 
         return File.Exists(path)
@@ -448,5 +451,9 @@ public sealed class ViewerViewModel : ReactiveObject
     /// 出せないときは <see cref="Message"/> に理由が入り、外のアプリでなら開けるものは
     /// <see cref="CanOpen"/> が true になる。
     /// </summary>
-    private sealed record LinkResolution(string? Path, string? Message, bool CanOpen);
+    private sealed record LinkResolution(
+        string? Path,
+        string? Message,
+        bool CanOpen,
+        bool IsDirectory = false);
 }

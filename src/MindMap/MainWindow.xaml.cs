@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using System.Diagnostics;
 using System.Reactive;
 using System.Windows;
 using System.Windows.Controls;
@@ -208,37 +207,11 @@ public partial class MainWindow : Window, IViewFor<MainWindowViewModel>
         });
     }
 
-    /// <summary>関連付けが無いファイルを開こうとしたときに Windows が返すコード。</summary>
-    private const int NoAssociationErrorCode = 1155;
-
     /// <summary>
-    /// URL やファイルを OS に渡す。URL は既定のブラウザーで、ファイルは関連付けられたアプリで開く。
+    /// URL やファイルを OS に渡す。実際の処理は <see cref="ShellOpenService"/> にある
+    /// （フォルダーの一覧の行からも同じ経路で開くため）。
     /// </summary>
-    private void OpenWithShell(string target)
-    {
-        try
-        {
-            // UseShellExecute にすると、実行ではなく「開く」の既定の動作に委ねられる。
-            Process.Start(new ProcessStartInfo(target) { UseShellExecute = true });
-        }
-        catch (Win32Exception ex) when (ex.NativeErrorCode == NoAssociationErrorCode)
-        {
-            // 開くアプリが決まっていないので、Windows の「プログラムから開く」を出す。
-            Process.Start(new ProcessStartInfo("rundll32.exe", $"shell32.dll,OpenAs_RunDLL {target}")
-            {
-                UseShellExecute = true,
-            });
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show(
-                this,
-                $"リンクを開けませんでした。\n\n{target}\n\n{ex.Message}",
-                "MindMap",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
-        }
-    }
+    private void OpenWithShell(string target) => ShellOpenService.Open(target, this);
 
     // ------------------------------------------------------------ ノードの操作
 

@@ -47,6 +47,7 @@ public sealed class ViewerRegistry
     private static IEnumerable<IContentViewerFactory> Builtin()
     {
         yield return new MindMapOutlineViewerFactory();
+        yield return new FolderListViewerFactory();
         yield return new PlainTextViewerFactory();
     }
 }

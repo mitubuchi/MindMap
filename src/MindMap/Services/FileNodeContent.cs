@@ -40,7 +40,7 @@ public sealed record FileNodeContent(
 
             if (info is FileInfo file)
             {
-                lines.Add($"サイズ: {FormatSize(file.Length)}");
+                lines.Add($"サイズ: {ByteSize.Describe(file.Length)}");
             }
             else
             {
@@ -66,21 +66,4 @@ public sealed record FileNodeContent(
         }
     }
 
-    /// <summary>バイト数を読みやすい単位にする。元のバイト数も併記する。</summary>
-    private static string FormatSize(long bytes)
-    {
-        string[] units = ["バイト", "KB", "MB", "GB", "TB"];
-
-        var size = (double)bytes;
-        var unit = 0;
-        while (size >= 1024 && unit < units.Length - 1)
-        {
-            size /= 1024;
-            unit++;
-        }
-
-        return unit == 0
-            ? $"{bytes:N0} バイト"
-            : $"{size:N1} {units[unit]} ({bytes:N0} バイト)";
-    }
 }

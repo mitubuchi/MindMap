@@ -27,6 +27,8 @@ MVVM フレームワークに [ReactiveUI](https://www.reactiveui.net/) を使�
   - **リンク** — タブの見出しがリンク先のファイル名になり、その下にフルパスが出る
   - **Markdown / SVG / 画像・動画**は、同梱の MdViewer パッケージが整形して表示
   - リンク先が `.mindmap` なら、ノードの親子関係をタイトルの字下げリストで表示
+  - リンク先が**フォルダー**なら、中のファイル一覧（名前・サイズ・更新日時）。
+    名前の左にはノードの脇と同じアイコンが出る。行をダブルクリック（または `Enter`）で開く
   - テキストとして読めるファイルはそのまま表示（文字コードは BOM・UTF-8・既定コードページの順に判定）
   - 表示できないものは理由を出し、パスの隣のアイコンから関連付けられたアプリに渡せる
   - **種類ごとの表示はパッケージで足せます**（[パッケージ](#パッケージ)）
@@ -91,7 +93,7 @@ powershell -ExecutionPolicy Bypass -File ../MindMapPackages/deploy.ps1 -Release
 ISCC.exe installer/MindMap.iss
 ```
 
-`installer/Output/MindMap-1.5.0-Setup.exe` が生成されます。管理者権限なしでユーザー領域に
+`installer/Output/MindMap-1.5.1-Setup.exe` が生成されます。管理者権限なしでユーザー領域に
 インストールでき、スタートメニュー登録とアンインストーラーが付きます。
 
 ### ファイルの関連付け
@@ -121,7 +123,7 @@ dotnet publish src/MindMap/MindMap.csproj -c Release -r win-x64 --self-contained
 powershell -ExecutionPolicy Bypass -File installer/package-zip.ps1
 ```
 
-`installer/Output/MindMap-1.5.0-win-x64.zip` が生成されます。展開してできる `MindMap`
+`installer/Output/MindMap-1.5.1-win-x64.zip` が生成されます。展開してできる `MindMap`
 フォルダー内の `MindMap.exe` を実行するだけで動きます。
 
 ビルド済みのインストーラーと ZIP は [Releases](../../releases) からダウンロードできます。
