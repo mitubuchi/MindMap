@@ -41,6 +41,10 @@ public sealed record FileNodeContent(
             if (info is FileInfo file)
             {
                 lines.Add($"サイズ: {ByteSize.Describe(file.Length)}");
+
+                // 画像・映像・音声なら、大きさや撮影時の設定を続けて並べる。
+                // 持っていないファイルでは 1 行も増えない。
+                lines.AddRange(MediaProperties.Describe(path));
             }
             else
             {
