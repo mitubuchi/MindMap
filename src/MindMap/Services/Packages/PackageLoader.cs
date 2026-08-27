@@ -1,8 +1,10 @@
 using System.IO;
 using System.Reflection;
 using System.Text.Json;
+using MindMap.Abstractions.Thumbnails;
 using MindMap.Abstractions.Tools;
 using MindMap.Abstractions.Viewers;
+using MindMap.Services.Thumbnails;
 using MindMap.Services.Tools;
 using MindMap.Services.Viewers;
 
@@ -30,10 +32,17 @@ public static class PackageLoader
     /// 実行ファイルの隣にある <c>plugins</c> を走査する。
     /// フォルダーが無ければ何もしない（パッケージを 1 つも入れていない状態が普通）。
     /// </summary>
-    public static PackageLoadResult LoadAll(ViewerRegistry viewers, MapToolRegistry tools) =>
-        LoadAll(Path.Combine(AppContext.BaseDirectory, FolderName), viewers, tools);
+    public static PackageLoadResult LoadAll(
+        ViewerRegistry viewers,
+        MapToolRegistry tools,
+        ThumbnailRegistry thumbnails) =>
+        LoadAll(Path.Combine(AppContext.BaseDirectory, FolderName), viewers, tools, thumbnails);
 
-    public static PackageLoadResult LoadAll(string root, ViewerRegistry viewers, MapToolRegistry tools)
+    public static PackageLoadResult LoadAll(
+        string root,
+        ViewerRegistry viewers,
+        MapToolRegistry tools,
+        ThumbnailRegistry thumbnails)
     {
         var loaded = new List<PackageManifest>();
         var errors = new List<string>();
@@ -54,7 +63,7 @@ public static class PackageLoader
             try
             {
                 var manifest = Read(manifestPath);
-                Distribute(manifest, folder, viewers, tools);
+                Distribute(manifest, folder, viewers, tools, thumbnails);
                 loaded.Add(manifest);
             }
             catch (Exception ex)
@@ -107,7 +116,8 @@ public static class PackageLoader
         PackageManifest manifest,
         string folder,
         ViewerRegistry viewers,
-        MapToolRegistry tools)
+        MapToolRegistry tools,
+        ThumbnailRegistry thumbnails)
     {
         foreach (var contribution in manifest.Contributes.Viewers)
         {
@@ -123,6 +133,20 @@ public static class PackageLoader
                 contribution.Priority,
                 contribution.Extensions,
                 () => Create<IContentViewerFactory>(manifest, folder, contribution.Type)));
+        }
+
+        foreach (var contribution in manifest.Contributes.Thumbnails)
+        {
+            if (string.IsNullOrWhiteSpace(contribution.Type))
+            {
+                throw new InvalidDataException("thumbnails に type が書かれていません。");
+            }
+
+            thumbnails.Add(new DeferredThumbnailProvider(
+                $"{manifest.Id}/{contribution.Type}",
+                contribution.Priority,
+                contribution.Extensions,
+                () => Create<INodeThumbnailProvider>(manifest, folder, contribution.Type)));
         }
 
         // 欄名の確かめは、ツールを 1 つでも名乗ったときだけ行う

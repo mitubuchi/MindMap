@@ -8,6 +8,7 @@ using System.Windows.Shapes;
 using System.Windows.Threading;
 using Microsoft.Win32;
 using MindMap.Services;
+using MindMap.Services.Thumbnails;
 using MindMap.Services.Tools;
 using MindMap.Services.Viewers;
 using MindMap.ViewModels;
@@ -54,11 +55,11 @@ public partial class MainWindow : Window, IViewFor<MainWindowViewModel>
     /// <summary>未保存確認のために閉じるのを一度キャンセルするので、二周目を見分けるフラグ。</summary>
     private bool _closeConfirmed;
 
-    public MainWindow(ViewerRegistry viewers, MapToolRegistry tools)
+    public MainWindow(ViewerRegistry viewers, MapToolRegistry tools, ThumbnailRegistry thumbnails)
     {
         InitializeComponent();
 
-        ViewModel = new MainWindowViewModel(viewers, tools);
+        ViewModel = new MainWindowViewModel(viewers, tools, thumbnails);
         DataContext = ViewModel;
 
         RegisterInteractionHandlers();
@@ -205,6 +206,15 @@ public partial class MainWindow : Window, IViewFor<MainWindowViewModel>
             OpenWithShell(context.Input);
             context.SetOutput(Unit.Default);
         });
+
+        ViewModel.MeasureNodes.RegisterHandler(context =>
+        {
+            // ノードの幅と高さは、描いてみて初めて決まる（Node_SizeChanged が返す）。
+            // 本文を隠した直後はまだ古い値なので、ここで一度レイアウトを回して
+            // SizeChanged を出させ、新しい大きさを ViewModel に届ける。
+            UpdateLayout();
+            context.SetOutput(Unit.Default);
+        });
     }
 
     /// <summary>
@@ -223,6 +233,8 @@ public partial class MainWindow : Window, IViewFor<MainWindowViewModel>
     {
         if (sender is FrameworkElement { DataContext: NodeViewModel node })
         {
+            // 倍率は RenderTransform で掛けるので、ここで測れるのは倍率が掛かる前の大きさ。
+            // 画面上の大きさが要る場面は WorldWidth / WorldHeight を見る。
             node.Width = e.NewSize.Width;
             node.Height = e.NewSize.Height;
         }
@@ -276,8 +288,10 @@ public partial class MainWindow : Window, IViewFor<MainWindowViewModel>
             return;
         }
 
+        // 親を動かすと子も付いてくるので、親と子を両方選んだままドラッグしても
+        // 動かすのは最上位だけにする（両方動かすと子に移動量が二重に掛かる）。
         var moving = document.SelectedNodes.Contains(node)
-            ? document.SelectedNodes.ToList()
+            ? document.SelectionRoots()
             : new List<NodeViewModel> { node };
 
         _dragOrigins = moving.Select(n => (Node: n, n.X, n.Y)).ToList();
@@ -302,9 +316,9 @@ public partial class MainWindow : Window, IViewFor<MainWindowViewModel>
         // キャンバスの外にノードが出て行方不明にならないよう内側に留める。
         // 複数を動かすときは、位置関係が崩れないよう移動量そのものを制限する。
         var minX = _dragOrigins.Max(o => -o.X);
-        var maxX = _dragOrigins.Min(o => Math.Max(0, canvas.Width - o.Node.Width) - o.X);
+        var maxX = _dragOrigins.Min(o => Math.Max(0, canvas.Width - o.Node.WorldWidth) - o.X);
         var minY = _dragOrigins.Max(o => -o.Y);
-        var maxY = _dragOrigins.Min(o => Math.Max(0, canvas.Height - o.Node.Height) - o.Y);
+        var maxY = _dragOrigins.Min(o => Math.Max(0, canvas.Height - o.Node.WorldHeight) - o.Y);
 
         deltaX = Math.Clamp(deltaX, minX, Math.Max(minX, maxX));
         deltaY = Math.Clamp(deltaY, minY, Math.Max(minY, maxY));
@@ -403,8 +417,10 @@ public partial class MainWindow : Window, IViewFor<MainWindowViewModel>
         var band = BandRect(e.GetPosition(canvas));
         if (_bandDocument is { } document && band is { Width: >= 3 } or { Height: >= 3 })
         {
+            // 畳まれて見えていないノードは、枠で囲っても選ばない。
             var hits = document.Nodes
-                .Where(n => band.IntersectsWith(new Rect(n.X, n.Y, n.Width, n.Height)))
+                .Where(n => n.IsVisible)
+                .Where(n => band.IntersectsWith(new Rect(n.X, n.Y, n.WorldWidth, n.WorldHeight)))
                 .ToList();
 
             document.SelectNodes(hits, _bandAdditive);

@@ -104,6 +104,14 @@
                         Tag="{StaticResource Icon.AddSibling}"
                         Content="兄弟ノード (Enter)" />
                 <Button Style="{StaticResource ToolBarButton}"
+                        Command="{Binding ActiveDocument.ArrangeChildrenVerticalCommand}"
+                        Tag="{StaticResource Icon.ArrangeVertical}"
+                        Content="子ノードを縦に整列（本文と孫は隠す）" />
+                <Button Style="{StaticResource ToolBarButton}"
+                        Command="{Binding ActiveDocument.ArrangeChildrenHorizontalCommand}"
+                        Tag="{StaticResource Icon.ArrangeHorizontal}"
+                        Content="子ノードを横に整列（本文と孫は隠す）" />
+                <Button Style="{StaticResource ToolBarButton}"
                         Command="{Binding ActiveDocument.BeginEditCommand}"
                         Tag="{StaticResource Icon.Edit}"
                         Content="編集 (F2)" />
@@ -274,7 +282,9 @@
                                               X2="{Binding X2}"
                                               Y2="{Binding Y2}"
                                               Stroke="#9AA5B1"
-                                              StrokeThickness="2" />
+                                              StrokeThickness="2"
+                                              Visibility="{Binding IsVisible,
+                                                                   Converter={StaticResource BoolToVis}}" />
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
@@ -289,6 +299,10 @@
                                     <Style TargetType="ContentPresenter">
                                         <Setter Property="Canvas.Left" Value="{Binding X}" />
                                         <Setter Property="Canvas.Top" Value="{Binding Y}" />
+                                        <!-- 畳んだ祖先がいるノードは消す。一覧から外さず見せないだけにして、
+                                             開いたときに位置も親子関係も元どおりに戻るようにしてある。 -->
+                                        <Setter Property="Visibility"
+                                                Value="{Binding IsVisible, Converter={StaticResource BoolToVis}}" />
                                         <!-- 選択中のノードは重なり順を上げ、他のノードに隠れないようにする。
                                              選択は常に 1 つだけなので、最前面に来るのはそのノードだけ。 -->
                                         <Style.Triggers>
@@ -301,12 +315,20 @@
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate DataType="{x:Type vm:NodeViewModel}">
                                         <!-- 幅・高さは指定せず中身に合わせる。MaxWidth を超えたぶんは折り返す。 -->
+                                        <!-- 倍率は RenderTransform で掛ける。LayoutTransform だと測り直しが起きて、
+                                             Node_SizeChanged が返す実測サイズに倍率が二重に掛かる。
+                                             原点は左上に固定してあるので、画面上の矩形は
+                                             (X, Y, WorldWidth, WorldHeight) と一致する。回転は 2D では使わないので、
+                                             矩形は軸に平行なままで、当たり判定を作り直さずに済む。
+                                             Style の Setter ではなくここに置くのは、Setter の値が
+                                             全ノードで共有されてしまい、1 つの倍率が全部に効いてしまうため。 -->
                                         <Border MinWidth="120"
                                                 MaxWidth="320"
                                                 MinHeight="48"
                                                 CornerRadius="8"
                                                 Background="White"
                                                 Cursor="SizeAll"
+                                                RenderTransformOrigin="0,0"
                                                 AllowDrop="True"
                                                 Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}"
                                                 SizeChanged="Node_SizeChanged"
@@ -316,6 +338,10 @@
                                                 PreviewMouseRightButtonDown="Node_PreviewMouseRightButtonDown"
                                                 DragOver="Node_DragOver"
                                                 Drop="Node_Drop">
+                                            <Border.RenderTransform>
+                                                <ScaleTransform ScaleX="{Binding WorldScaleX}"
+                                                                ScaleY="{Binding WorldScaleY}" />
+                                            </Border.RenderTransform>
                                             <Border.ContextMenu>
                                                 <ContextMenu>
                                                     <!-- 切り取り・コピー・貼り付けはドキュメント側のコマンド。
@@ -374,6 +400,7 @@
                                                             <ColumnDefinition Width="*" />
                                                             <ColumnDefinition Width="Auto" />
                                                             <ColumnDefinition Width="Auto" />
+                                                            <ColumnDefinition Width="Auto" />
                                                         </Grid.ColumnDefinitions>
                                                         <TextBlock Text="{Binding Title}"
                                                                    FontWeight="SemiBold"
@@ -395,9 +422,19 @@
                                                                 Margin="2,0,0,0"
                                                                 VerticalAlignment="Center"
                                                                 Style="{StaticResource NodeToggleButton}"
-                                                                Visibility="{Binding HasBody, Converter={StaticResource BoolToVis}}"
+                                                                Visibility="{Binding HasBodyContent, Converter={StaticResource BoolToVis}}"
                                                                 ToolTip="表示の大小を切り替え（タイトルのみ／本文つき）"
                                                                 Command="{Binding DataContext.ToggleCollapseCommand,
+                                                                                  RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                CommandParameter="{Binding}" />
+                                                        <!-- 子がいるノードだけ、その先を畳むボタンを出す。 -->
+                                                        <Button Grid.Column="3"
+                                                                Margin="2,0,0,0"
+                                                                VerticalAlignment="Center"
+                                                                Style="{StaticResource NodeChildrenToggleButton}"
+                                                                Visibility="{Binding HasChildren, Converter={StaticResource BoolToVis}}"
+                                                                ToolTip="子ノードの表示を切り替え"
+                                                                Command="{Binding DataContext.ToggleChildrenCommand,
                                                                                   RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                                 CommandParameter="{Binding}" />
                                                     </Grid>
@@ -405,12 +442,64 @@
                                                             Margin="0,6"
                                                             Background="#E3E8EE"
                                                             Visibility="{Binding IsBodyVisible, Converter={StaticResource BoolToVis}}" />
+                                                    <!--
+                                                        本文欄。リンク先が画像や動画なら、文章の代わりに絵を出す
+                                                        （パッケージが絵を作れたときだけ Thumbnail に入る）。
+                                                        出す・出さないの切り替えは文章のときと同じ IsBodyVisible。
+                                                    -->
                                                     <TextBlock Text="{Binding Body}"
                                                                TextAlignment="Left"
                                                                TextWrapping="Wrap"
                                                                FontSize="12"
-                                                               Foreground="#5B6673"
-                                                               Visibility="{Binding IsBodyVisible, Converter={StaticResource BoolToVis}}" />
+                                                               Foreground="#5B6673">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                                <Style.Triggers>
+                                                                    <MultiDataTrigger>
+                                                                        <MultiDataTrigger.Conditions>
+                                                                            <Condition Binding="{Binding IsBodyVisible}" Value="True" />
+                                                                            <Condition Binding="{Binding HasThumbnail}" Value="False" />
+                                                                        </MultiDataTrigger.Conditions>
+                                                                        <Setter Property="Visibility" Value="Visible" />
+                                                                    </MultiDataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+
+                                                    <!--
+                                                        絵の下地。256 角の白い枠に、縦横比を保ったまま中央に収める
+                                                        （Stretch="Uniform" が縦横比を保ち、余ったぶんが白く残る）。
+                                                        絵が入ったら文章のほうは引っ込める。
+                                                    -->
+                                                    <Border Width="256"
+                                                            Height="256"
+                                                            Background="White"
+                                                            BorderBrush="#E3E8EE"
+                                                            BorderThickness="1"
+                                                            SnapsToDevicePixels="True">
+                                                        <Border.Style>
+                                                            <Style TargetType="Border">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                                <Style.Triggers>
+                                                                    <MultiDataTrigger>
+                                                                        <MultiDataTrigger.Conditions>
+                                                                            <Condition Binding="{Binding HasThumbnail}" Value="True" />
+                                                                            <Condition Binding="{Binding IsBodyVisible}" Value="True" />
+                                                                        </MultiDataTrigger.Conditions>
+                                                                        <Setter Property="Visibility" Value="Visible" />
+                                                                    </MultiDataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Border.Style>
+                                                        <Image Source="{Binding Thumbnail}"
+                                                               Stretch="Uniform"
+                                                               StretchDirection="DownOnly"
+                                                               HorizontalAlignment="Center"
+                                                               VerticalAlignment="Center"
+                                                               RenderOptions.BitmapScalingMode="HighQuality" />
+                                                    </Border>
                                                 </StackPanel>
 
                                                 <!-- 編集：タイトル欄は 1 行のみ。Enter で内容欄に移る。

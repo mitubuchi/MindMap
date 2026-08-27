@@ -51,6 +51,16 @@
     <PathGeometry x:Key="Icon.Paste"
                   Figures="M9,4 H5 V21 H19 V4 H15 M9,2.5 H15 V6 H9 Z M8,11 H16 M8,15 H16" />
 
+    <!--
+        子ノードの整列。左の四角が親、その右（下）に並ぶ棒が子。
+        縦は親の右に縦一列、横は親の下に横一列、という並び方をそのまま形にしてある。
+    -->
+    <PathGeometry x:Key="Icon.ArrangeVertical"
+                  Figures="M3,10 H7 V14 H3 Z M11,5 H21 M11,12 H21 M11,19 H21" />
+
+    <PathGeometry x:Key="Icon.ArrangeHorizontal"
+                  Figures="M10,3 H14 V7 H10 Z M5,11 V21 M12,11 V21 M19,11 V21" />
+
     <PathGeometry x:Key="Icon.Edit" Figures="M4,20 V16 L16,4 L20,8 L8,20 Z M14,6 L18,10" />
 
     <PathGeometry x:Key="Icon.Delete"
@@ -104,6 +114,13 @@
     <PathGeometry x:Key="Icon.ChevronUp" Figures="M6,15 L12,9 L18,15" />
 
     <PathGeometry x:Key="Icon.ChevronDown" Figures="M6,9 L12,15 L18,9" />
+
+    <!-- 子ノードの表示・非表示。丸にマイナスが「今は出ている」、プラスが「畳んである」。 -->
+    <PathGeometry x:Key="Icon.CollapseChildren"
+                  Figures="M4,12 A8,8 0 1 0 20,12 A8,8 0 1 0 4,12 M8.5,12 H15.5" />
+
+    <PathGeometry x:Key="Icon.ExpandChildren"
+                  Figures="M4,12 A8,8 0 1 0 20,12 A8,8 0 1 0 4,12 M8.5,12 H15.5 M12,8.5 V15.5" />
 
     <!--
         リンクの絵柄。DataContext の Link を見て、行き先に合わせた見た目にする。
@@ -266,6 +283,49 @@
                     <ControlTemplate.Triggers>
                         <DataTrigger Binding="{Binding IsCollapsed}" Value="True">
                             <Setter TargetName="Glyph" Property="Data" Value="{StaticResource Icon.ChevronDown}" />
+                        </DataTrigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Backdrop" Property="Background" Value="#DDE3EA" />
+                            <Setter TargetName="Glyph" Property="Stroke" Value="#3C4652" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        子ノードの表示・非表示を切り替えるボタン。
+        NodeToggleButton とほとんど同じだが、見ている欄（IsCollapsed / AreChildrenHidden）と
+        字が違う。トリガーの中で切り替える欄を差し替えられないので、style ごと分けてある。
+    -->
+    <Style x:Key="NodeChildrenToggleButton" TargetType="Button">
+        <Setter Property="Width" Value="18" />
+        <Setter Property="Height" Value="18" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Backdrop"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="3">
+                        <Path x:Name="Glyph"
+                              Data="{StaticResource Icon.CollapseChildren}"
+                              Width="12"
+                              Height="12"
+                              Stretch="Uniform"
+                              Stroke="#8A94A0"
+                              StrokeThickness="1.7"
+                              StrokeLineJoin="Round"
+                              StrokeStartLineCap="Round"
+                              StrokeEndLineCap="Round"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <DataTrigger Binding="{Binding AreChildrenHidden}" Value="True">
+                            <Setter TargetName="Glyph" Property="Data" Value="{StaticResource Icon.ExpandChildren}" />
                         </DataTrigger>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="Backdrop" Property="Background" Value="#DDE3EA" />

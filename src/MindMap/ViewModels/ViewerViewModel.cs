@@ -378,40 +378,11 @@ public sealed class ViewerViewModel : ReactiveObject
     }
 
     /// <summary>
-    /// リンクを実際のパスに直す。相対パスは、リンク元のタブが置かれた場所を基準に解く
-    /// （<see cref="MainWindowViewModel"/> がリンクを開くときと同じ考え方）。
+    /// リンクを実際のパスに直す。解き方は <see cref="LinkPathResolver"/> にまとめてある
+    /// （ノードのサムネイルも同じ解き方をする必要があるため）。
     /// </summary>
-    private string? ResolvePath(string link)
-    {
-        try
-        {
-            // file:/// 形式で書かれたときだけ Uri 経由で直す。ふつうのパスまで通すと、
-            // # などがフラグメントの記号として解釈されて途中で切れてしまう。
-            if (link.StartsWith("file:", StringComparison.OrdinalIgnoreCase) &&
-                Uri.TryCreate(link, UriKind.Absolute, out var uri) &&
-                uri.IsFile)
-            {
-                return uri.LocalPath;
-            }
-
-            if (Path.IsPathRooted(link))
-            {
-                return Path.GetFullPath(link);
-            }
-
-            if (_document?.CurrentFilePath is not { } baseFile)
-            {
-                return null;
-            }
-
-            return Path.GetFullPath(Path.Combine(Path.GetDirectoryName(baseFile) ?? string.Empty, link));
-        }
-        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
-        {
-            // パスに使えない文字が入っているなど。場所が決められなかったものとして扱う。
-            return null;
-        }
-    }
+    private string? ResolvePath(string link) =>
+        LinkPathResolver.Resolve(link, _document?.CurrentFilePath);
 
     /// <summary>
     /// リンクタブの見出し。ファイルならファイル名、Web ならホスト名。

@@ -4,6 +4,7 @@ using System.IO;
 using System.Reactive;
 using System.Reactive.Linq;
 using MindMap.Services;
+using MindMap.Services.Thumbnails;
 using MindMap.Services.Tools;
 using MindMap.Services.Viewers;
 using ReactiveUI;
@@ -23,9 +24,15 @@ public sealed class MainWindowViewModel : ReactiveObject
 
     private DocumentViewModel? _activeDocument;
 
-    public MainWindowViewModel(ViewerRegistry viewers, MapToolRegistry tools)
+    private readonly NodeThumbnailService _thumbnails;
+
+    public MainWindowViewModel(ViewerRegistry viewers, MapToolRegistry tools, ThumbnailRegistry thumbnails)
     {
         Viewer = new ViewerViewModel(viewers);
+
+        // サムネイルを作る係はウィンドウで 1 つ。作業スレッドと控えを、
+        // タブをまたいで使い回す（同じ画像を別のタブで開いても作り直さない）。
+        _thumbnails = new NodeThumbnailService(thumbnails);
 
         var hasActiveDocument = this.WhenAnyValue(x => x.ActiveDocument).Select(d => d is not null);
 
@@ -143,6 +150,15 @@ public sealed class MainWindowViewModel : ReactiveObject
     /// <summary>URL やファイルを OS に渡して開いてもらう。</summary>
     public Interaction<string, Unit> OpenExternal { get; } = new();
 
+    /// <summary>
+    /// ノードの大きさを測り直してもらう。
+    ///
+    /// ノードの幅と高さは View が実際に描いて初めて決まる（<c>Node_SizeChanged</c>）。
+    /// 本文を隠してから並べるとき、隠した直後の値はまだ古いままなので、
+    /// 並べる前に一度だけ View にレイアウトを回してもらう必要がある。
+    /// </summary>
+    public Interaction<Unit, Unit> MeasureNodes { get; } = new();
+
     /// <summary>ウィンドウを閉じてよいか。未保存のタブがあれば 1 つずつ確認する。</summary>
     public async Task<bool> CanCloseAsync()
     {
@@ -178,7 +194,13 @@ public sealed class MainWindowViewModel : ReactiveObject
     }
 
     private DocumentViewModel CreateDocument() =>
-        new($"無題 {++_untitledCounter}", ShowSaveFileDialog, ShowLinkFileDialog, ConfirmSaveChanges, ShowError);
+        new($"無題 {++_untitledCounter}",
+            ShowSaveFileDialog,
+            ShowLinkFileDialog,
+            ConfirmSaveChanges,
+            ShowError,
+            MeasureNodes,
+            _thumbnails);
 
     private void AddDocument(DocumentViewModel document)
     {

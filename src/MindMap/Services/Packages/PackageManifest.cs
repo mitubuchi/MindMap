@@ -66,6 +66,9 @@ public sealed class PackageContributions
     /// <summary>ツールバーに並ぶ操作。</summary>
     public List<ToolContribution> Tools { get; set; } = [];
 
+    /// <summary>ノードに出す、リンク先の小さな絵。</summary>
+    public List<ThumbnailContribution> Thumbnails { get; set; } = [];
+
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? Extra { get; set; }
 }
@@ -78,6 +81,22 @@ public sealed class ViewerContribution
 
     /// <summary>
     /// 扱える拡張子（"." 付き）。ここに書いておくと、該当するファイルが選ばれるまで
+    /// DLL を読み込まずに済む。
+    /// </summary>
+    public List<string> Extensions { get; set; } = [];
+
+    /// <summary>同じ拡張子を複数のパッケージが名乗ったときの優先順位。大きいほうが勝つ。</summary>
+    public int Priority { get; set; } = 100;
+}
+
+/// <summary>サムネイルを 1 つ提供する宣言。</summary>
+public sealed class ThumbnailContribution
+{
+    /// <summary><c>INodeThumbnailProvider</c> を実装した型の完全名。</summary>
+    public string Type { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 扱える拡張子（"." 付き）。ここに書いておくと、該当するリンクが現れるまで
     /// DLL を読み込まずに済む。
     /// </summary>
     public List<string> Extensions { get; set; } = [];
