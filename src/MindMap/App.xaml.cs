@@ -1,6 +1,7 @@
 using System.Text;
 using System.Windows;
 using MindMap.Services.Packages;
+using MindMap.Services.Settings;
 using MindMap.Services.Thumbnails;
 using MindMap.Services.Tools;
 using MindMap.Services.Viewers;
@@ -13,6 +14,11 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        // 設定は起動時に必ず読む。ファイルが無ければ既定値で作る（何が設定できるのかを、
+        // config.txt を開くだけで分かるようにするため）。リンクの解き方が Root Path を
+        // 見るので、マップを 1 つでも開く前に済ませておく必要がある。
+        SettingsService.Load();
 
         // BOM の無いテキストを Shift_JIS などで読み直せるようにする。
         // .NET では既定で UTF-8 系しか引けないので、ビューアが使う前にここで足しておく。

@@ -49,6 +49,7 @@ MVVM フレームワークに [ReactiveUI](https://www.reactiveui.net/) を使�
 - **表示** — ズーム（Ctrl+ホイール）、パン（中ボタンドラッグ）、ノードの自動サイズ調整
 - **ファイル入出力** — 新規・開く・保存・名前を付けて保存・すべて保存（開いているタブの未保存ぶんをまとめて）。未保存のまま閉じると確認
 - **ファイルの関連付け** — `.mindmap` を MindMap で開けるようインストーラーが登録。既定のアプリに設定すれば、ダブルクリックでそのまま開く
+- **設定** — ツールバー右端の歯車から。実行ファイルと同じフォルダーの `config.txt` に保存する（[設定](#設定)）
 
 ## キーボード操作
 
@@ -105,7 +106,7 @@ powershell -ExecutionPolicy Bypass -File ../MindMapPackages/deploy.ps1 -Release
 ISCC.exe installer/MindMap.iss
 ```
 
-`installer/Output/MindMap-1.6.0-Setup.exe` が生成されます。管理者権限なしでユーザー領域に
+`installer/Output/MindMap-1.6.1-Setup.exe` が生成されます。管理者権限なしでユーザー領域に
 インストールでき、スタートメニュー登録とアンインストーラーが付きます。
 
 ### ファイルの関連付け
@@ -135,7 +136,7 @@ dotnet publish src/MindMap/MindMap.csproj -c Release -r win-x64 --self-contained
 powershell -ExecutionPolicy Bypass -File installer/package-zip.ps1
 ```
 
-`installer/Output/MindMap-1.6.0-win-x64.zip` が生成されます。展開してできる `MindMap`
+`installer/Output/MindMap-1.6.1-win-x64.zip` が生成されます。展開してできる `MindMap`
 フォルダー内の `MindMap.exe` を実行するだけで動きます。
 
 ビルド済みのインストーラーと ZIP は [Releases](../../releases) からダウンロードできます。
@@ -311,6 +312,59 @@ public sealed class ExampleTool : IMapTool
 既定で同梱しているパッケージの実装は
 [MindMapPackages](https://github.com/mitubuchi/MindMapPackages)（非公開）にあります。
 
+## 設定
+
+ツールバーのいちばん右にある歯車から開きます。OK を押した時点で、**実行ファイルと同じ
+フォルダー**の `config.txt` に書かれます。持ち運べる形にしておきたいので、ユーザーの
+プロファイルには書きません。起動時に必ず読み、ファイルが無ければ既定値で作ります。
+
+| 項目 | 内容 |
+|---|---|
+| Root Path | ノードのリンクを相対パスで書くときの基準にするフォルダー |
+| Data Path | データの置き場。いまは覚えておくだけで、動作には使っていない |
+| Root Relative Links | Root Path の下にあるリンクを、相対パスに置き換えて保存するか（既定は有効） |
+
+`config.txt` は 1 行 1 項目で、`名前 : "値"` の形です。テキストエディタで直せます。
+`#` で始まる行と空行は読み飛ばすので、覚え書きを書き足しても壊れません。
+
+```
+Root Path : "D:\work\map"
+Data Path : ""
+Root Relative Links : "true"
+```
+
+知らない名前が書かれていても読み飛ばさず、そのまま持っておいて保存時に書き戻します
+（[ファイル形式](#ファイル形式)の「知らない欄」と同じ考え方です）。
+
+設定項目を増やすときに触るのは `Services/Settings/AppSettings.cs` の `Definitions` に
+1 行足すところだけです。設定画面はその一覧を見て組み立てるので、画面側には何も足しません。
+値の種類（フォルダー / ファイル / 文字列 / 入切）を新しく増やすときだけ、
+`SettingsWindow.xaml` にテンプレートを 1 つ足します。
+
+### リンクの相対パス
+
+**Root Path の下**を指す絶対パスのリンクは、保存時に Root からの相対パスへ置き換えます。
+Root ごと別の場所へ移してもリンクが切れません。
+
+- Root の外や別ドライブのものは**絶対パスのまま**です（`..\..\..\` が並ぶと目で追えず、
+  Root を動かしても得をしないため）
+- すでに相対で書かれているリンクには触りません。基準を読み替えると、古いファイルに入っている
+  マップファイル基準の相対パスの意味が変わってしまうためです
+- URL や `mailto:` はそのままです
+
+「子ノードを別のファイルに保存」が張る**相互リンクも同じ規則**で書きます。1 つのファイルの
+中に基準の違う相対パスが混ざると、同じ名前のファイルが両方の基準の先にあったときに
+取り違えるためです。Root の外へ切り出したときだけ、Root からは表せないので相手のファイル
+からの相対に落とします。
+
+読むときは、Root 基準とマップファイル基準の**両方を試して、実在する方**を採ります。
+この機能より前に作ったファイルにはマップファイル基準の相対パスが入っているので、
+そのまま開けます。置き換えたくないときは `Root Relative Links` を切ってください。
+
+解き方は [`Services/LinkPathResolver.cs`](src/MindMap/Services/LinkPathResolver.cs) の 1 か所に
+まとめてあります。ビューア・サムネイル・リンクを開く操作がそれぞれ別に解くと、
+**表示はできるのに開けない**（またはその逆）という食い違いが起きます。
+
 ## ファイル形式
 
 `.mindmap` ファイルは JSON です。ノードは親子関係を `ParentId` で表すフラットな配列として
@@ -383,13 +437,15 @@ src/MindMap/
 ├─ Services/         ファイル入出力・リンク解釈
 │  ├─ Viewers/       リンク先の種類ごとの表示
 │  ├─ Tools/         パッケージが足す操作と、その結果に付ける識別子
+│  ├─ Settings/      config.txt の読み書きと、設定項目の定義
 │  └─ Packages/      plugins の走査と DLL の読み込み
-├─ ViewModels/       画面ロジック（アプリ全体 / ドキュメント / ノード / ビューア）
+├─ ViewModels/       画面ロジック（アプリ全体 / ドキュメント / ノード / ビューア / 設定）
 ├─ Converters/       XAML 用のコンバーター
 ├─ Undo/             Undo/Redo の履歴管理
 ├─ Resources/        アイコンなどのリソース
 ├─ App.xaml          エントリポイント
 ├─ MainWindow.xaml   メインウィンドウ
+├─ SettingsWindow.xaml  設定ウィンドウ
 └─ ViewerPane.xaml   画面右のビューア
 ```
 

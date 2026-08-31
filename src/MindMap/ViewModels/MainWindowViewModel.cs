@@ -61,6 +61,7 @@ public sealed class MainWindowViewModel : ReactiveObject
         CloseActiveDocumentCommand = ReactiveCommand.CreateFromTask(
             () => CloseDocumentAsync(ActiveDocument!),
             hasActiveDocument);
+        OpenSettingsCommand = ReactiveCommand.CreateFromObservable(() => ShowSettings.Handle(Unit.Default));
 
         // パッケージのツール。入っていなければ空のままで、ツールバーには何も増えない。
         Tools = tools.Tools.Select(CreateToolCommand).ToList();
@@ -73,6 +74,7 @@ public sealed class MainWindowViewModel : ReactiveObject
                 SaveAllCommand.ThrownExceptions,
                 CloseDocumentCommand.ThrownExceptions,
                 CloseActiveDocumentCommand.ThrownExceptions,
+                OpenSettingsCommand.ThrownExceptions,
 
                 // パッケージのツールで起きた例外も、本体の操作と同じところで見せる。
                 Observable.Merge(Tools.Select(t => t.Command.ThrownExceptions)))
@@ -133,6 +135,9 @@ public sealed class MainWindowViewModel : ReactiveObject
 
     public ReactiveCommand<Unit, Unit> CloseActiveDocumentCommand { get; }
 
+    /// <summary>設定ウィンドウを開く。ツールバーのいちばん右のボタンから。</summary>
+    public ReactiveCommand<Unit, Unit> OpenSettingsCommand { get; }
+
     /// <summary>「開く」ダイアログを View 側に依頼する。キャンセル時は null を返す。</summary>
     public Interaction<Unit, string?> ShowOpenFileDialog { get; } = new();
 
@@ -149,6 +154,9 @@ public sealed class MainWindowViewModel : ReactiveObject
 
     /// <summary>URL やファイルを OS に渡して開いてもらう。</summary>
     public Interaction<string, Unit> OpenExternal { get; } = new();
+
+    /// <summary>設定ウィンドウを出す。閉じるまで戻らない。</summary>
+    public Interaction<Unit, Unit> ShowSettings { get; } = new();
 
     /// <summary>
     /// ノードの大きさを測り直してもらう。
@@ -334,51 +342,23 @@ public sealed class MainWindowViewModel : ReactiveObject
 
     /// <summary>
     /// リンクが手元のファイルやフォルダーを指しているならその絶対パスを返す。
-    /// 相対パスは、リンク元のドキュメントが置かれた場所を基準に解く。
     /// http/https/mailto など、ファイル以外を指す URL は対象外。
+    ///
+    /// 相対パスの解き方そのものは <see cref="LinkPathResolver"/> に任せる。
+    /// ここで自前に解いていたときは設定の Root Path を知らず、Root からの相対で
+    /// 書かれたリンクをリンク元のフォルダー基準で解いて、開けないことがあった
+    /// （ビューアやサムネイルは正しく出るのに、開くときだけ違う場所を見る状態になる）。
     /// </summary>
     private string? ResolveLocalPath(string link)
     {
-        var path = link;
-
-        if (Uri.TryCreate(link, UriKind.Absolute, out var uri))
-        {
-            if (!uri.IsFile)
-            {
-                return null;
-            }
-
-            // file:/// 形式で書かれたときだけ手元のパスに直す。ふつうのパスまで Uri 経由に
-            // すると、# などがフラグメントの記号として解釈されて途中で切れてしまう。
-            if (link.StartsWith("file:", StringComparison.OrdinalIgnoreCase))
-            {
-                path = uri.LocalPath;
-            }
-        }
-
-        try
-        {
-            if (!Path.IsPathRooted(path))
-            {
-                if (ActiveDocument?.CurrentFilePath is not { } baseFile)
-                {
-                    return null;
-                }
-
-                path = Path.Combine(Path.GetDirectoryName(baseFile) ?? string.Empty, path);
-            }
-
-            return Path.GetFullPath(path);
-        }
-        catch (ArgumentException)
-        {
-            // パスに使えない文字が入っていた場合。リンクは元の文字列のまま外部に投げる。
-            return null;
-        }
-        catch (NotSupportedException)
+        // file: 以外のスキームが付いていれば、手元のファイルではない。
+        if (Uri.TryCreate(link, UriKind.Absolute, out var uri) &&
+            !uri.IsFile)
         {
             return null;
         }
+
+        return LinkPathResolver.Resolve(link, ActiveDocument?.CurrentFilePath);
     }
 
     /// <summary>リンクが手元のマインドマップファイルを指しているならその絶対パスを返す。</summary>

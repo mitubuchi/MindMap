@@ -55,6 +55,9 @@ public partial class MainWindow : Window, IViewFor<MainWindowViewModel>
     /// <summary>未保存確認のために閉じるのを一度キャンセルするので、二周目を見分けるフラグ。</summary>
     private bool _closeConfirmed;
 
+    /// <summary>設定ウィンドウを開く順番待ちに入れたかどうか。素早く 2 回押されて 2 枚開くのを防ぐ。</summary>
+    private bool _settingsPending;
+
     public MainWindow(ViewerRegistry viewers, MapToolRegistry tools, ThumbnailRegistry thumbnails)
     {
         InitializeComponent();
@@ -204,6 +207,37 @@ public partial class MainWindow : Window, IViewFor<MainWindowViewModel>
         ViewModel.OpenExternal.RegisterHandler(context =>
         {
             OpenWithShell(context.Input);
+            context.SetOutput(Unit.Default);
+        });
+
+        ViewModel.ShowSettings.RegisterHandler(context =>
+        {
+            // 設定はアプリ全体に効くので、開いている間はマップ側を触らせない（モーダル）。
+            //
+            // ただし ShowDialog をこの場で待ってはいけない。ここはコマンドの実行の中で、
+            // Rx のスケジューラーは積まれた作業を 1 つずつ順に流すため、閉じるまで待つと
+            // 設定ウィンドウ側のコマンド（参照ボタンなど）が同じ順番待ちの後ろに並び、
+            // 押しても何も起きないまま閉じるまで持ち越されてしまう。
+            // コマンドを先に終わらせてから、次の順番で開く。
+            //
+            // 待たないぶん、押した時点ではまだ開いていない。素早く 2 回押されると
+            // 2 枚が順番待ちに並んでしまうので、開き終わるまでは足さない。
+            if (!_settingsPending)
+            {
+                _settingsPending = true;
+                Dispatcher.BeginInvoke(() =>
+                {
+                    try
+                    {
+                        new SettingsWindow { Owner = this }.ShowDialog();
+                    }
+                    finally
+                    {
+                        _settingsPending = false;
+                    }
+                });
+            }
+
             context.SetOutput(Unit.Default);
         });
 

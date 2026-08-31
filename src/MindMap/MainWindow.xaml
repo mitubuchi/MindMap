@@ -166,6 +166,16 @@
                               IsChecked="{Binding Viewer.IsVisible, Mode=TwoWay}"
                               Tag="{StaticResource Icon.Viewer}"
                               Content="ビューア (F7)" />
+
+                <!--
+                    設定。ツールバーのいちばん右に置く。ここだけはマップの操作ではなく
+                    アプリ全体の話なので、他と離して末尾に固定する。
+                -->
+                <Separator />
+                <Button Style="{StaticResource ToolBarButton}"
+                        Command="{Binding OpenSettingsCommand}"
+                        Tag="{StaticResource Icon.Settings}"
+                        Content="設定" />
             </ToolBar>
         </ToolBarTray>
 

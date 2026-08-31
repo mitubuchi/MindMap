@@ -1093,7 +1093,7 @@ public sealed class DocumentViewModel : ReactiveObject
 
         try
         {
-            MindMapFileService.Save(path, BuildExtractedDocument(node, children, LinkPath(path, sourcePath)));
+            MindMapFileService.Save(path, BuildExtractedDocument(node, children, CrossLink(path, sourcePath)));
         }
         catch (Exception ex)
         {
@@ -1103,7 +1103,7 @@ public sealed class DocumentViewModel : ReactiveObject
         }
 
         var oldLink = node.Link;
-        var newLink = LinkPath(sourcePath, path);
+        var newLink = CrossLink(sourcePath, path);
 
         Extract();
 
@@ -1187,6 +1187,22 @@ public sealed class DocumentViewModel : ReactiveObject
             Version = MindMapDocument.CurrentVersion,
             Nodes = nodes,
         };
+    }
+
+    /// <summary>
+    /// 切り出した 2 つのファイルが互いに張るリンク。
+    ///
+    /// 他のリンクと同じ規則（Root Path の下なら Root からの相対）で書く。ここだけ
+    /// マップファイル基準にすると、1 つのファイルの中に基準の違う相対パスが混ざり、
+    /// 同じ名前のファイルが両方の基準の先にあったときに取り違える。
+    /// Root の外へ切り出したときは Root からは表せないので、相手のファイルからの相対に落とす。
+    /// </summary>
+    private static string CrossLink(string fromFile, string toFile)
+    {
+        var stored = LinkPathResolver.ToStoredLink(Path.GetFullPath(toFile));
+
+        // 置き換わらなかった（＝Root の外、別ドライブ、設定が切）ときは絶対パスのまま返る。
+        return Path.IsPathRooted(stored) ? LinkPath(fromFile, toFile) : stored;
     }
 
     /// <summary>
@@ -1866,7 +1882,11 @@ public sealed class DocumentViewModel : ReactiveObject
         ParentId = parentId,
         Title = node.Title,
         Body = node.Body,
-        Link = node.Link,
+
+        // リンクは、書くときだけ Root からの相対に直す（設定と Root の下にあることが条件）。
+        // 画面の側は絶対パスのまま持っておく。ここで node.Link を書き換えてしまうと、
+        // 保存しただけで未保存の印が立ち、Undo の記録にも残ってしまう。
+        Link = LinkPathResolver.ToStoredLink(node.Link),
         Collapsed = node.IsCollapsed,
         ChildrenCollapsed = node.AreChildrenHidden,
         CreatedAt = node.CreatedAt,
