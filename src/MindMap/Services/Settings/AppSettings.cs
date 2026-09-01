@@ -1,3 +1,5 @@
+using MindMap.Abstractions.Settings;
+
 namespace MindMap.Services.Settings;
 
 /// <summary>
@@ -14,9 +16,11 @@ namespace MindMap.Services.Settings;
 /// </summary>
 public sealed class AppSettings
 {
-    public const string RootPathKey = "Root Path";
-    public const string DataPathKey = "Data Path";
-    public const string RootRelativeLinksKey = "Root Relative Links";
+    // 名前は契約側（HostSettings）と同じものを使う。パッケージからも同じ名前で引けるようにするため、
+    // 2 か所に書かない。
+    public const string RootPathKey = HostSettingKeys.RootPath;
+    public const string DataPathKey = HostSettingKeys.DataPath;
+    public const string RootRelativeLinksKey = HostSettingKeys.RootRelativeLinks;
 
     /// <summary>
     /// 設定項目の一覧。config.txt に書く順と、設定画面に並ぶ順を兼ねる。
@@ -35,7 +39,7 @@ public sealed class AppSettings
             Key = DataPathKey,
             Label = "Data Path",
             Kind = SettingKind.Folder,
-            Description = "データの置き場。いまは覚えておくだけで、動作には使っていない。",
+            Description = "パッケージが書き出したファイルを置くフォルダー。本体はここに書きません。",
         },
         new SettingDefinition
         {

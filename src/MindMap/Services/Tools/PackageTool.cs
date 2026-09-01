@@ -1,5 +1,7 @@
 using System.Windows;
+using MindMap.Abstractions.Settings;
 using MindMap.Abstractions.Tools;
+using MindMap.Services.Settings;
 
 namespace MindMap.Services.Tools;
 
@@ -83,8 +85,23 @@ public sealed class PackageTool
             Owner = Application.Current?.MainWindow,
             Progress = progress,
             ExistingKeys = existingKeys,
+
+            // 実行のたびに写しを作る。設定画面で変えた値が、次の実行から効くようにするため。
+            Settings = Snapshot(SettingsService.Current),
         };
 
         return tool.RunAsync(context, cancellationToken);
     }
+
+    /// <summary>
+    /// パッケージに渡す設定の写し。ホストが知らない項目も含めてそのまま渡す
+    /// （パッケージが自分用の項目を config.txt に書いて読めるようにするため）。
+    /// 設定ファイルは手で書き換えられるので、大文字小文字は区別しない。
+    /// </summary>
+    private static HostSettings Snapshot(AppSettings settings) => new()
+    {
+        Values = settings
+            .ToEntries()
+            .ToDictionary(e => e.Key, e => e.Value, StringComparer.OrdinalIgnoreCase),
+    };
 }

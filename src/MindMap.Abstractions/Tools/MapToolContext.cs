@@ -1,4 +1,5 @@
 using System.Windows;
+using MindMap.Abstractions.Settings;
 
 namespace MindMap.Abstractions.Tools;
 
@@ -17,6 +18,15 @@ public sealed class MapToolContext
     /// UI スレッドへの受け渡しはホスト側で済ませてあるので、別スレッドから報告してよい。
     /// </summary>
     public required IProgress<string> Progress { get; init; }
+
+    /// <summary>
+    /// ホストの設定（config.txt）の写し。書き出したファイルの置き場（
+    /// <see cref="HostSettings.DataPath"/>）のように、利用者が決めた値を見たいとき用。
+    ///
+    /// 実行のたびに渡すので、設定画面で変えた値はその次の実行から効く。
+    /// 覚え込まずに、毎回ここから読むこと。
+    /// </summary>
+    public required HostSettings Settings { get; init; }
 
     /// <summary>
     /// このツールが前に置いたノードの識別子（<see cref="MapNodeSpec.Key"/>）。

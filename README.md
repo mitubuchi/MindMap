@@ -106,7 +106,7 @@ powershell -ExecutionPolicy Bypass -File ../MindMapPackages/deploy.ps1 -Release
 ISCC.exe installer/MindMap.iss
 ```
 
-`installer/Output/MindMap-1.6.1-Setup.exe` が生成されます。管理者権限なしでユーザー領域に
+`installer/Output/MindMap-1.7.0-Setup.exe` が生成されます。管理者権限なしでユーザー領域に
 インストールでき、スタートメニュー登録とアンインストーラーが付きます。
 
 ### ファイルの関連付け
@@ -136,7 +136,7 @@ dotnet publish src/MindMap/MindMap.csproj -c Release -r win-x64 --self-contained
 powershell -ExecutionPolicy Bypass -File installer/package-zip.ps1
 ```
 
-`installer/Output/MindMap-1.6.1-win-x64.zip` が生成されます。展開してできる `MindMap`
+`installer/Output/MindMap-1.7.0-win-x64.zip` が生成されます。展開してできる `MindMap`
 フォルダー内の `MindMap.exe` を実行するだけで動きます。
 
 ビルド済みのインストーラーと ZIP は [Releases](../../releases) からダウンロードできます。
@@ -282,6 +282,26 @@ plugins/
 `shortcut` が本体のキーと重なった場合は本体が勝ちます
 （パッケージを入れただけで本体の操作が変わってしまわないようにするためです）。
 
+### 設定を読む
+
+ツールには、実行のたびに `config.txt` の写しが `MapToolContext.Settings` として渡ります。
+利用者が決めた場所に書き出したいツール（取り込んだ中身を Markdown にするものなど）が、
+**置き場所を自分で決めずに済む**ようにするためです。
+
+```csharp
+var dataPath = context.Settings.DataPath;      // "Data Path"
+var rootPath = context.Settings.RootPath;      // "Root Path"
+var mine     = context.Settings["Example Key"] // 本体が知らない項目も引ける
+```
+
+- **読むだけです。** 書き戻す口はありません。設定が変わるのは利用者の操作だけ、という形を
+  崩さないためです
+- 本体が知らない項目も渡します。`config.txt` は知らない名前をそのまま持ち越すので、
+  パッケージが自分用の項目を書き足しておいて読めます
+- 未設定の項目は空文字です。**空のときに置き場所を勝手に決めないでください。**
+  利用者の知らない場所にファイルが増えてしまいます（同梱の OneNote パッケージは、
+  Data Path が空なら設定してもらう案内を出して何もしません）
+
 ### 作り方
 
 `src/MindMap.Abstractions` を参照して、提供したい種類の取り決めを実装し、
@@ -321,7 +341,7 @@ public sealed class ExampleTool : IMapTool
 | 項目 | 内容 |
 |---|---|
 | Root Path | ノードのリンクを相対パスで書くときの基準にするフォルダー |
-| Data Path | データの置き場。いまは覚えておくだけで、動作には使っていない |
+| Data Path | パッケージが書き出したファイルを置くフォルダー（[設定を読む](#設定を読む)）。本体はここに書かない |
 | Root Relative Links | Root Path の下にあるリンクを、相対パスに置き換えて保存するか（既定は有効） |
 
 `config.txt` は 1 行 1 項目で、`名前 : "値"` の形です。テキストエディタで直せます。
