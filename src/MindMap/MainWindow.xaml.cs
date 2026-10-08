@@ -670,10 +670,33 @@ public partial class MainWindow : Window, IViewFor<MainWindowViewModel>
     /// </summary>
     private void EditPanel_IsKeyboardFocusWithinChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
-        if (e.NewValue is false && sender is FrameworkElement { DataContext: NodeViewModel node })
+        if (e.NewValue is false && sender is FrameworkElement { DataContext: NodeViewModel node } panel)
         {
+            // 編集欄の右クリックメニューを開くと、フォーカスはメニューへ移る。
+            // ここで確定すると欄が消えて、メニューの切り取りや貼り付けが届かなくなる。
+            // メニューを閉じればフォーカスは欄に戻るので、編集は続けたままにしておく。
+            if (Keyboard.FocusedElement is DependencyObject focused && IsEditMenuOf(panel, focused))
+            {
+                return;
+            }
+
             node.IsEditing = false;
         }
+    }
+
+    /// <summary>フォーカスのある要素が、このパネル内の欄から開いた右クリックメニューの中にあるか。</summary>
+    private static bool IsEditMenuOf(FrameworkElement panel, DependencyObject focused)
+    {
+        // メニューは visual tree の外にあるので、論理ツリーでメニュー本体まで上る。
+        for (var current = focused; current is not null; current = LogicalTreeHelper.GetParent(current))
+        {
+            if (current is ContextMenu { PlacementTarget: { } target })
+            {
+                return panel.IsAncestorOf(target);
+            }
+        }
+
+        return false;
     }
 
     // ------------------------------------------------------------ スクロールとズーム

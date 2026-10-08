@@ -16,6 +16,19 @@
         <conv:EmptyToVisibilityConverter x:Key="EmptyToVis" />
         <conv:EmptyToVisibilityConverter x:Key="NotEmptyToVis" Invert="True" />
         <conv:ToolIconConverter x:Key="ToolIcon" />
+
+        <!-- 編集欄の右クリックメニュー。持たせないと外側のノードのメニューが開き、
+             「貼り付け」が文字ではなくノードの貼り付けになってしまう。
+             欄ごとに別の実体が要るので x:Shared="False"。 -->
+        <ContextMenu x:Key="EditBoxMenu" x:Shared="False">
+            <MenuItem Header="元に戻す" Command="ApplicationCommands.Undo" />
+            <Separator />
+            <MenuItem Header="切り取り" Command="ApplicationCommands.Cut" />
+            <MenuItem Header="コピー" Command="ApplicationCommands.Copy" />
+            <MenuItem Header="貼り付け" Command="ApplicationCommands.Paste" />
+            <Separator />
+            <MenuItem Header="すべて選択" Command="ApplicationCommands.SelectAll" />
+        </ContextMenu>
     </Window.Resources>
 
     <Window.InputBindings>
@@ -524,6 +537,7 @@
                                                              BorderThickness="0"
                                                              Background="Transparent"
                                                              IsVisibleChanged="TitleBox_IsVisibleChanged"
+                                                             ContextMenu="{StaticResource EditBoxMenu}"
                                                              PreviewKeyDown="EditBox_PreviewKeyDown" />
                                                     <Border Height="1" Margin="0,6" Background="#E3E8EE" />
                                                     <TextBox Text="{Binding Body, UpdateSourceTrigger=PropertyChanged}"
@@ -535,6 +549,7 @@
                                                              FontSize="12"
                                                              BorderThickness="0"
                                                              Background="Transparent"
+                                                             ContextMenu="{StaticResource EditBoxMenu}"
                                                              PreviewKeyDown="EditBox_PreviewKeyDown" />
 
                                                     <!-- リンク欄。本文から Tab で移れる。 -->
@@ -562,7 +577,8 @@
                                                                  Foreground="#5B6673"
                                                                  BorderThickness="0"
                                                                  Background="Transparent"
-                                                                 ToolTip="URL やファイルのパス（ブラウザーやエクスプローラーからのドラッグ、右クリックでも設定できます）"
+                                                                 ToolTip="URL やファイルのパス（ブラウザーやエクスプローラーからのドラッグ、編集していないときのノードの右クリックでも設定できます）"
+                                                                 ContextMenu="{StaticResource EditBoxMenu}"
                                                                  PreviewKeyDown="EditBox_PreviewKeyDown" />
                                                     </Grid>
                                                 </StackPanel>
