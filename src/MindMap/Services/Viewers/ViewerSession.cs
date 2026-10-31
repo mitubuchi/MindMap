@@ -66,6 +66,14 @@ public sealed class ViewerSession : IDisposable
         }
     }
 
+    /// <summary>
+    /// 枠に入っている画面を描いたビューアが印刷できるなら、それを返す。
+    /// 画面と突き合わせるのは、読み込みに失敗して代わりの案内を出しているときや、
+    /// 枠に載る前に次の読み込みが始まったときに、別のものを印刷しないため。
+    /// </summary>
+    public IPrintableViewer? PrintableFor(FrameworkElement? view) =>
+        view is not null && ReferenceEquals(_viewer?.View, view) ? _viewer as IPrintableViewer : null;
+
     public void Dispose() => Release();
 
     private void Release()

@@ -4,6 +4,7 @@ using System.Reactive.Linq;
 using System.Windows;
 using MindMap.Abstractions.Viewers;
 using MindMap.Services;
+using MindMap.Services.Printing;
 using MindMap.Services.Viewers;
 using ReactiveUI;
 
@@ -56,6 +57,7 @@ public sealed class ViewerViewModel : ReactiveObject
     private string _body = string.Empty;
     private string _link = string.Empty;
     private FrameworkElement? _linkView;
+    private bool _canPrint;
     private string? _message = NoTargetMessage;
 
     public ViewerViewModel(ViewerRegistry viewers)
@@ -63,6 +65,11 @@ public sealed class ViewerViewModel : ReactiveObject
         _session = new ViewerSession(viewers);
 
         ToggleCommand = ReactiveCommand.Create(() => { IsVisible = !IsVisible; });
+
+        // 閉じている間は Ctrl+P も効かない。見えていないものを印刷しないため。
+        PrintCommand = ReactiveCommand.Create(
+            Print,
+            this.WhenAnyValue(x => x.CanPrint, x => x.IsVisible, (can, visible) => can && visible));
 
         // 対象のノードだけでなく、その内容の変化も追う。キャンバス側で書き換えても
         // ビューアに映り、Undo で戻したときも同じ経路で戻る。
@@ -233,7 +240,19 @@ public sealed class ViewerViewModel : ReactiveObject
     /// </summary>
     public bool ShowsOpenLink => _canOpenLink && _sourceKind == ViewerSource.Link;
 
+    /// <summary>
+    /// いま出しているものを印刷できるか。本文はノードを選んでいれば常に、
+    /// リンク先はそれを描いたビューアが印刷に対応しているときだけ。
+    /// </summary>
+    public bool CanPrint
+    {
+        get => _canPrint;
+        private set => this.RaiseAndSetIfChanged(ref _canPrint, value);
+    }
+
     public ReactiveCommand<Unit, Unit> ToggleCommand { get; }
+
+    public ReactiveCommand<Unit, Unit> PrintCommand { get; }
 
     /// <summary>選択が変わったときにウィンドウ側から呼ぶ。</summary>
     public void SetTarget(DocumentViewModel? document, NodeViewModel? node)
@@ -335,6 +354,39 @@ public sealed class ViewerViewModel : ReactiveObject
         this.RaisePropertyChanged(nameof(ShowsEditor));
         this.RaisePropertyChanged(nameof(ShowsLink));
         this.RaisePropertyChanged(nameof(ShowsOpenLink));
+
+        CanPrint = ShowsEditor
+            ? Node is not null
+            : ShowsLink && _session.PrintableFor(LinkView) is not null;
+    }
+
+    private void Print()
+    {
+        var owner = Application.Current?.MainWindow;
+
+        if (_sourceKind == ViewerSource.Body)
+        {
+            if (Node is not { } node)
+            {
+                return;
+            }
+
+            // 印刷している間に本文欄から抜けたことにして、ここまでの編集を確定させておく。
+            EndEdit();
+
+            var title = string.IsNullOrWhiteSpace(node.Title) ? "(無題)" : node.Title;
+            var body = Body;
+            PrintService.Print(title, page => TextPrintDocument.Create(title, body, page), owner);
+            return;
+        }
+
+        if (_session.PrintableFor(LinkView) is not { } printable)
+        {
+            return;
+        }
+
+        var name = Path.GetFileName(Caption.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+        PrintService.Print(string.IsNullOrEmpty(name) ? Caption : name, printable.CreatePaginator, owner);
     }
 
     /// <summary>

@@ -43,6 +43,9 @@ MVVM フレームワークに [ReactiveUI](https://www.reactiveui.net/) を使�
     名前の左にはノードの脇と同じアイコンが出る。行をダブルクリック（または `Enter`）で開く
   - テキストとして読めるファイルはそのまま表示（文字コードは BOM・UTF-8・既定コードページの順に判定）
   - 表示できないものは理由を出し、パスの隣のアイコンから関連付けられたアプリに渡せる
+  - **印刷**（見出しのプリンターのボタン、または `Ctrl+P`）— 画面を写すのではなく、用紙に合わせて
+    組み直して印刷する。本文・テキスト・Markdown はページに分け、フォルダーは一覧を表に、
+    SVG・画像は 1 枚に収める。PDF は同梱ではない PdfViewer パッケージで印刷できる
   - **種類ごとの表示はパッケージで足せます**（[パッケージ](#パッケージ)）
 - **複数ドキュメント** — タブで複数のマップを同時に開ける
 - **Undo / Redo** — 追加・削除・編集・移動・リンク設定をまとめて元に戻せる
@@ -69,6 +72,7 @@ MVVM フレームワークに [ReactiveUI](https://www.reactiveui.net/) を使�
 | `Delete` | 選択中のノードとその子孫を削除 |
 | `Ctrl` + `+` / `-` / `0` | 拡大 / 縮小 / 等倍 |
 | `F7` | ビューアの表示 / 非表示 |
+| `Ctrl+P` | ビューアの中身を印刷（ビューアを開いているときだけ） |
 
 ノードの編集中は、タイトル欄で `Enter` を押すと内容欄へ移動し、`Ctrl+Enter` で確定、
 `Esc` で編集前に戻します。
@@ -308,7 +312,10 @@ var mine     = context.Settings["Example Key"] // 本体が知らない項目も
 `plugin.json` に型名を書くだけです。
 
 - **ビューア** — `IContentViewerFactory` と `IContentViewer`。
-  `IContentViewer.View` が返した `FrameworkElement` が、そのままビューアの枠に入ります
+  `IContentViewer.View` が返した `FrameworkElement` が、そのままビューアの枠に入ります。
+  印刷に対応するなら `IPrintableViewer` も実装します（任意。実装しないビューアでは印刷ボタンが淡くなります）。
+  用紙の大きさを受け取って `DocumentPaginator` を返すだけで、ページ分けや 1 枚に収める形は
+  `PrintLayout` にあります（契約 1.5 から）
 - **ツール** — `IMapTool`。置きたいノードを `MapNodeSpec` の木にして返します。
   自前のダイアログを出すときは、親ウィンドウが `MapToolContext.Owner` で渡されます
 

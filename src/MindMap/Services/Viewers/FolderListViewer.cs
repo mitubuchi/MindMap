@@ -1,8 +1,11 @@
 using System.Globalization;
 using System.IO;
 using System.Windows;
+using System.Windows.Documents;
+using System.Windows.Media;
 using System.Windows.Threading;
 using MindMap.Abstractions.Viewers;
+using MindMap.Services.Printing;
 
 namespace MindMap.Services.Viewers;
 
@@ -37,7 +40,7 @@ public sealed class FolderListModel
     public bool HasEntries => Entries.Count > 0;
 }
 
-internal sealed class FolderListViewer : IContentViewer
+internal sealed class FolderListViewer : IContentViewer, IPrintableViewer
 {
     /// <summary>
     /// これより多い項目は出さない。数万件のフォルダーを選んだだけで
@@ -48,6 +51,9 @@ internal sealed class FolderListViewer : IContentViewer
     private const string DateFormat = "yyyy/MM/dd HH:mm";
 
     private readonly FolderListView _view = new();
+
+    /// <summary>印刷の見出しにする、フォルダーの場所。</summary>
+    private string _path = string.Empty;
 
     public FrameworkElement View => _view;
 
@@ -61,11 +67,71 @@ internal sealed class FolderListViewer : IContentViewer
         // 続きが UI スレッドに戻るかは呼ばれ方で変わる。画面を触るところは明示的に渡す。
         if (_view.Dispatcher.CheckAccess())
         {
-            _view.DataContext = model;
+            Apply();
             return;
         }
 
-        await _view.Dispatcher.InvokeAsync(() => _view.DataContext = model);
+        await _view.Dispatcher.InvokeAsync(Apply);
+
+        void Apply()
+        {
+            _path = content.FilePath;
+            _view.DataContext = model;
+        }
+    }
+
+    /// <summary>画面と同じ一覧を表にして印刷する。アイコンは出さない。</summary>
+    public DocumentPaginator? CreatePaginator(PrintPage page)
+    {
+        if (_view.DataContext is not FolderListModel { HasEntries: true } model)
+        {
+            return null;
+        }
+
+        var document = TextPrintDocument.Begin(_path);
+
+        document.Blocks.Add(new Paragraph(new Run(model.Summary))
+        {
+            Foreground = new SolidColorBrush(Color.FromRgb(0x5B, 0x66, 0x73)),
+            Margin = new Thickness(0, 0, 0, 8),
+        });
+
+        // 列幅はすべて比率で決める。固定幅と * を混ぜると、FlowDocument の表では
+        // * の列が 1 文字ぶんまで潰れて名前が縦に並んでしまう。
+        var table = new Table { CellSpacing = 0 };
+        table.Columns.Add(new TableColumn { Width = new GridLength(6, GridUnitType.Star) });
+        table.Columns.Add(new TableColumn { Width = new GridLength(1.3, GridUnitType.Star) });
+        table.Columns.Add(new TableColumn { Width = new GridLength(2, GridUnitType.Star) });
+
+        var rows = new TableRowGroup();
+        rows.Rows.Add(Row(FontWeights.SemiBold, "名前", "サイズ", "更新日時"));
+
+        foreach (var entry in model.Entries)
+        {
+            rows.Rows.Add(Row(FontWeights.Normal, entry.Name, entry.Size, entry.Modified));
+        }
+
+        table.RowGroups.Add(rows);
+        document.Blocks.Add(table);
+
+        return PrintLayout.Paginate(document, page);
+
+        static TableRow Row(FontWeight weight, string name, string size, string modified)
+        {
+            var row = new TableRow { FontWeight = weight };
+            row.Cells.Add(Cell(name, TextAlignment.Left));
+            row.Cells.Add(Cell(size, TextAlignment.Right));
+            row.Cells.Add(Cell(modified, TextAlignment.Right));
+            return row;
+        }
+
+        static TableCell Cell(string text, TextAlignment alignment) =>
+            new(new Paragraph(new Run(text)) { Margin = new Thickness(0), TextAlignment = alignment })
+            {
+                Padding = new Thickness(0, 2, 6, 2),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(0xE4, 0xE8, 0xED)),
+                BorderThickness = new Thickness(0, 0, 0, 0.5),
+            };
     }
 
     public void Dispose()

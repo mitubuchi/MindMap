@@ -55,6 +55,7 @@
         <KeyBinding Key="OemMinus" Modifiers="Ctrl" Command="{Binding ActiveDocument.ZoomOutCommand}" />
         <KeyBinding Key="D0" Modifiers="Ctrl" Command="{Binding ActiveDocument.ResetZoomCommand}" />
         <KeyBinding Key="F7" Command="{Binding Viewer.ToggleCommand}" />
+        <KeyBinding Key="P" Modifiers="Ctrl" Command="{Binding Viewer.PrintCommand}" />
     </Window.InputBindings>
 
     <DockPanel>

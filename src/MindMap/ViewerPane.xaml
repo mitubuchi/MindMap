@@ -21,7 +21,7 @@
             BorderBrush="#DDE3EA"
             BorderThickness="1,0,0,0">
         <DockPanel>
-            <!-- 見出し行：本文とリンクの切り替え、右端に閉じるボタン。 -->
+            <!-- 見出し行：本文とリンクの切り替え、右端に印刷と閉じるボタン。 -->
             <Border DockPanel.Dock="Top"
                     Background="#F4F6F8"
                     BorderBrush="#DDE3EA"
@@ -30,6 +30,7 @@
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <StackPanel Orientation="Horizontal">
@@ -50,7 +51,17 @@
                                                          ConverterParameter=Link,
                                                          Mode=TwoWay}" />
                     </StackPanel>
+                    <!-- 印刷できないもの（対応していないビューア、読めなかった中身）では淡くする。
+                         消さずに淡くするのは、選ぶたびにボタンが出入りして閉じるボタンの位置がずれないため。 -->
                     <Button Grid.Column="1"
+                            Margin="0,0,4,0"
+                            VerticalAlignment="Center"
+                            Style="{StaticResource ViewerHeaderButton}"
+                            Tag="{StaticResource Icon.Print}"
+                            ToolTip="印刷 (Ctrl+P)"
+                            ToolTipService.ShowOnDisabled="True"
+                            Command="{Binding PrintCommand}" />
+                    <Button Grid.Column="2"
                             VerticalAlignment="Center"
                             Style="{StaticResource TabCloseButton}"
                             ToolTip="ビューアを閉じる (F7)"

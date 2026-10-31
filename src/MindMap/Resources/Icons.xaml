@@ -109,6 +109,10 @@
 
     <PathGeometry x:Key="Icon.Close" Figures="M5,5 L15,15 M15,5 L5,15" />
 
+    <!-- 印刷：用紙を差したプリンター。 -->
+    <PathGeometry x:Key="Icon.Print"
+                  Figures="M7,9 V3 H17 V9 M7,17 H4 V9 H20 V17 H17 M7,14 H17 V21 H7 Z" />
+
     <!-- リンク：枠の外に飛び出す矢印。Web のリンクにも使う。 -->
     <PathGeometry x:Key="Icon.Link" Figures="M13,4 H20 V11 M20,4 L11,13 M17,14 V20 H4 V7 H10" />
 
@@ -478,6 +482,51 @@
                     <Path Style="{StaticResource ToolBarIcon}"
                           Data="{Binding Tag, RelativeSource={RelativeSource AncestorType=ToggleButton}}" />
                 </DataTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        ビューアの見出しに並べる小さなボタン。絵柄は Tag に入れる。
+        閉じるボタンと並ぶので、見た目（控えめ・ホバーで背景）はそちらに合わせる。
+    -->
+    <Style x:Key="ViewerHeaderButton" TargetType="Button">
+        <Setter Property="Width" Value="22" />
+        <Setter Property="Height" Value="20" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Backdrop"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="3">
+                        <Path x:Name="Glyph"
+                              Data="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}"
+                              Width="14"
+                              Height="14"
+                              Stretch="Uniform"
+                              Stroke="#5B6673"
+                              StrokeThickness="1.5"
+                              StrokeLineJoin="Round"
+                              StrokeStartLineCap="Round"
+                              StrokeEndLineCap="Round"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Backdrop" Property="Background" Value="#DDE3EA" />
+                            <Setter TargetName="Glyph" Property="Stroke" Value="#3C4652" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Backdrop" Property="Background" Value="#C3CBD5" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Glyph" Property="Opacity" Value="0.35" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
             </Setter.Value>
         </Setter>
     </Style>

@@ -1,7 +1,9 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Documents;
 using MindMap.Abstractions.Viewers;
+using MindMap.Services.Printing;
 
 namespace MindMap.Services.Viewers;
 
@@ -11,11 +13,17 @@ namespace MindMap.Services.Viewers;
 /// 読めなかった理由もこの枠の中に出す。ホスト側に「ビューアが失敗したとき」の
 /// 分岐を作らずに済ませるため（<see cref="IContentViewer"/> の約束）。
 /// </summary>
-public abstract class TextContentViewer : IContentViewer
+public abstract class TextContentViewer : IContentViewer, IPrintableViewer
 {
     private readonly Grid _root;
     private readonly TextBox _text;
     private readonly TextBlock _notice;
+
+    /// <summary>印刷の見出しにするファイル名。</summary>
+    private string _title = string.Empty;
+
+    /// <summary>出している文字。理由を出しているとき（印刷するものが無いとき）は null。</summary>
+    private string? _shown;
 
     protected TextContentViewer()
     {
@@ -61,22 +69,29 @@ public abstract class TextContentViewer : IContentViewer
 
         if (_root.Dispatcher.CheckAccess())
         {
-            Apply(document);
+            Apply(content, document);
             return;
         }
 
-        await _root.Dispatcher.InvokeAsync(() => Apply(document));
+        await _root.Dispatcher.InvokeAsync(() => Apply(content, document));
     }
 
-    private void Apply(TextDocument document)
+    public DocumentPaginator? CreatePaginator(PrintPage page) =>
+        _shown is { } text ? TextPrintDocument.Create(_title, text, page) : null;
+
+    private void Apply(ViewerContent content, TextDocument document)
     {
+        _title = content.FileName;
+
         if (document.Message is { } message)
         {
+            _shown = null;
             Show(_notice, message);
             return;
         }
 
-        Show(_text, document.Text ?? string.Empty);
+        _shown = document.Text ?? string.Empty;
+        Show(_text, _shown);
     }
 
     /// <summary>中身を組み立てる。出せないときは理由を返す（例外は投げない）。</summary>
