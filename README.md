@@ -34,6 +34,11 @@ MVVM フレームワークに [ReactiveUI](https://www.reactiveui.net/) を使�
 - **子ノードの切り出し** — ノードを右クリック →「子ノードを別のファイルに保存」で、その部分木を別の
   `.mindmap` ファイルへ。ノードのコピーが切り出し先のルートになり、元のノードとの間に相互リンクが張られる。
   元のファイルからは子ノードが消える（Undo で戻せる）
+- **フォルダーの展開** — フォルダーを指すノードを右クリック →「フォルダーの中身を子ノードに展開」で、
+  直下のファイルとフォルダーを子ノードにする（ドロップしたときと同じ形で、リンクはその項目を指す）。
+  掘るのは 1 階層だけで、下の階層は子フォルダーのノードで同じ操作を繰り返す。もう一度押すと
+  増えた項目だけを足す。並びはフォルダーが先でエクスプローラーと同じ順、隠し・システムファイルは除く。
+  200 件を超えるときは確認を出す。1 回の Undo で元に戻る
 - **ビューア** — 画面右に開閉できる作業ペイン（`F7`）。選択中のノードに追従する
   - **本文** — その場で書き換えられる。入ってから抜けるまでが 1 回ぶんの Undo になる
   - **リンク** — タブの見出しがリンク先のファイル名になり、その下にフルパスが出る
@@ -110,7 +115,7 @@ powershell -ExecutionPolicy Bypass -File ../MindMapPackages/deploy.ps1 -Release
 ISCC.exe installer/MindMap.iss
 ```
 
-`installer/Output/MindMap-1.7.0-Setup.exe` が生成されます。管理者権限なしでユーザー領域に
+`installer/Output/MindMap-1.7.1-Setup.exe` が生成されます。管理者権限なしでユーザー領域に
 インストールでき、スタートメニュー登録とアンインストーラーが付きます。
 
 ### ファイルの関連付け
@@ -140,7 +145,7 @@ dotnet publish src/MindMap/MindMap.csproj -c Release -r win-x64 --self-contained
 powershell -ExecutionPolicy Bypass -File installer/package-zip.ps1
 ```
 
-`installer/Output/MindMap-1.7.0-win-x64.zip` が生成されます。展開してできる `MindMap`
+`installer/Output/MindMap-1.7.1-win-x64.zip` が生成されます。展開してできる `MindMap`
 フォルダー内の `MindMap.exe` を実行するだけで動きます。
 
 ビルド済みのインストーラーと ZIP は [Releases](../../releases) からダウンロードできます。

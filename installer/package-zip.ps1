@@ -7,7 +7,7 @@
 #   dotnet publish src/MindMap/MindMap.csproj -c Release -r win-x64 --self-contained true -o publish/win-x64
 
 param(
-    [string]$Version = "1.7.0"
+    [string]$Version = "1.7.1"
 )
 
 $ErrorActionPreference = "Stop"
