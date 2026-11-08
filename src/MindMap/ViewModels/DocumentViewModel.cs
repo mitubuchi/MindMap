@@ -539,6 +539,111 @@ public sealed class DocumentViewModel : ReactiveObject
         AddDroppedNodes(created, parent);
     }
 
+    /// <summary>一度に展開する項目がこれを超えたら、本当に並べるか確かめる。</summary>
+    public const int ManyFolderEntries = 200;
+
+    /// <summary>
+    /// ノードのリンクがフォルダーを指していれば、その場所を返す。ファイルや URL、
+    /// 消えたフォルダーを指しているときは null。右クリックメニューの項目を
+    /// 押せるかどうかにも使う。
+    /// </summary>
+    public string? ResolveFolderLink(NodeViewModel node)
+    {
+        var path = LinkPathResolver.Resolve(node.Link, CurrentFilePath);
+        return path is not null && Directory.Exists(path) ? path : null;
+    }
+
+    /// <summary>
+    /// リンク先のフォルダーの中身（直下だけ）を、そのノードの子として並べる。
+    /// 中身はドロップしたときと同じ形（タイトルは名前、本文は属性、リンクはその項目）にする。
+    ///
+    /// すでに同じ場所を指す子がいれば飛ばすので、もう一度押すと増えた分だけが足される。
+    /// 消えた項目の子ノードは消さない（手で書き足した本文を勝手に捨てないため）。
+    /// 足したものは 1 回の Undo でまとめて取り消せる。
+    /// </summary>
+    /// <param name="node">フォルダーを指すノード。</param>
+    /// <param name="confirmMany">
+    /// 項目が <see cref="ManyFolderEntries"/> を超えたときに、件数を渡して続けるか尋ねる。
+    /// null なら尋ねずに並べる。
+    /// </param>
+    /// <returns>足したノードの数。</returns>
+    public int ExpandFolder(NodeViewModel node, Func<int, bool>? confirmMany = null)
+    {
+        if (ResolveFolderLink(node) is not { } folder)
+        {
+            _showError.Handle("リンク先のフォルダーが見つかりません。").Subscribe();
+            return 0;
+        }
+
+        if (FolderListing.TryList(folder) is not { } entries)
+        {
+            _showError.Handle($"フォルダーの中身を読めませんでした。{Environment.NewLine}{folder}").Subscribe();
+            return 0;
+        }
+
+        // 子のリンクも相対で書かれていることがあるので、解いた形で突き合わせる。
+        var existing = new HashSet<string>(
+            ChildrenOf(node)
+                .Select(child => LinkPathResolver.Resolve(child.Link, CurrentFilePath))
+                .OfType<string>()
+                .Select(NormalizeForCompare),
+            StringComparer.OrdinalIgnoreCase);
+
+        var added = entries.Where(path => !existing.Contains(NormalizeForCompare(path))).ToList();
+        if (added.Count == 0)
+        {
+            return 0;
+        }
+
+        if (added.Count > ManyFolderEntries && confirmMany is not null && !confirmMany(added.Count))
+        {
+            return 0;
+        }
+
+        var (x, top) = NextChildPosition(node);
+        var created = new List<NodeViewModel>();
+
+        foreach (var path in added)
+        {
+            if (FileNodeContent.TryCreate(path) is not { } content)
+            {
+                continue;
+            }
+
+            // 制作日・更新日を項目自身の日時に合わせるのはドロップと同じ（AddFileNodes 参照）。
+            created.Add(new NodeViewModel(Guid.NewGuid(), content.Title, content.Body, x, top, content.Link)
+            {
+                CreatedAt = content.CreatedAt,
+                UpdatedAt = content.UpdatedAt,
+                Parent = node,
+            });
+
+            top += NodeViewModel.DefaultHeight + VerticalGap;
+        }
+
+        // 子を畳んだままだと、足した子が見えないまま選択だけが移ってしまうので開く。
+        // 取り消しても開いたままにする（畳み直すのは一手で済み、害が無いため）。
+        if (created.Count > 0 && node.AreChildrenHidden)
+        {
+            node.AreChildrenHidden = false;
+        }
+
+        AddDroppedNodes(created, node);
+        return created.Count;
+    }
+
+    private static string NormalizeForCompare(string path)
+    {
+        try
+        {
+            return Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
+        }
+        catch (Exception e) when (e is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return path;
+        }
+    }
+
     /// <summary>
     /// ブラウザーから落とされた URL を、選択中のノード（無ければルート）の子として追加する。
     /// タイトルはページの題名、無ければ URL そのもの。リンクは URL を指す。

@@ -577,6 +577,44 @@ public partial class MainWindow : Window, IViewFor<MainWindowViewModel>
         }
     }
 
+    /// <summary>
+    /// ノードの右クリックメニューを開いたとき、リンク先がフォルダーのときだけ
+    /// 「フォルダーの中身を子ノードに展開」を押せるようにする。
+    /// </summary>
+    private void NodeContextMenu_Opened(object sender, RoutedEventArgs e)
+    {
+        if (sender is not ContextMenu { DataContext: NodeViewModel node, PlacementTarget: { } target } menu)
+        {
+            return;
+        }
+
+        var document = FindDocument(target);
+        var isFolder = node.HasLink && document?.ResolveFolderLink(node) is not null;
+
+        foreach (var item in menu.Items.OfType<MenuItem>())
+        {
+            if (item.Tag is "ExpandFolder")
+            {
+                item.IsEnabled = isFolder;
+            }
+        }
+    }
+
+    private void ContextExpandFolder_Click(object sender, RoutedEventArgs e)
+    {
+        if (NodeOf(sender) is not { } node || DocumentOf(sender) is not { } document)
+        {
+            return;
+        }
+
+        document.ExpandFolder(node, count => MessageBox.Show(
+            this,
+            $"{count} 件の項目を子ノードとして並べます。よろしいですか？",
+            "フォルダーの中身を展開",
+            MessageBoxButton.OKCancel,
+            MessageBoxImage.Question) == MessageBoxResult.OK);
+    }
+
     private async void ContextSetFileLink_Click(object sender, RoutedEventArgs e)
     {
         if (NodeOf(sender) is { } node && DocumentOf(sender) is { } document)

@@ -367,7 +367,7 @@
                                                                 ScaleY="{Binding WorldScaleY}" />
                                             </Border.RenderTransform>
                                             <Border.ContextMenu>
-                                                <ContextMenu>
+                                                <ContextMenu Opened="NodeContextMenu_Opened">
                                                     <!-- 切り取り・コピー・貼り付けはドキュメント側のコマンド。
                                                          ContextMenu は visual tree の外にいるので、
                                                          開く元の Border に持たせたウィンドウの ViewModel から辿る。 -->
@@ -392,6 +392,11 @@
                                                     <MenuItem Header="リンクを開く"
                                                               IsEnabled="{Binding HasLink}"
                                                               Click="ContextOpenLink_Click" />
+                                                    <!-- 押せるかどうかはリンク先がフォルダーかで決まる。
+                                                         ディスクを見るので、メニューを開いたときに決める（NodeContextMenu_Opened）。 -->
+                                                    <MenuItem Header="フォルダーの中身を子ノードに展開"
+                                                              Tag="ExpandFolder"
+                                                              Click="ContextExpandFolder_Click" />
                                                     <Separator />
                                                     <MenuItem Header="ファイルを選んでリンク..."
                                                               Click="ContextSetFileLink_Click" />
